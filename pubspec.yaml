@@ -1,7 +1,7 @@
 name: udyoga
 description: "Udyoga - career and job search: matched openings, tailored CVs, applications, contacts, career paths, learning and interview practice (Linux, Windows, Android). Part of Brahma."
 publish_to: 'none'
-version: 0.5.0+13
+version: 0.6.0+14
 
 environment:
   sdk: ^3.13.5
@@ -30,6 +30,11 @@ dependencies:
   path_provider: ^2.1.6
   desktop_webview_window: 0.3.2
   webview_flutter: ^4.14.1
+  shadcn_ui: ^0.59.0
+  flutter_animate: ^4.5.2
+  smooth_sheets: ^1.3.1
+  toastification: ^3.2.2
+  enough_mail: ^3.0.0
 
 dev_dependencies:
   flutter_test:

@@ -11,8 +11,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:brahma_core/brahma_core.dart' hide Release, UpdateException, checksumsName, updaterProvider;
 import 'package:udyoga/app/app.dart';
 import 'package:udyoga/app/providers.dart';
+import 'package:udyoga/domain/bluesky.dart';
+import 'package:udyoga/domain/book.dart';
+import 'package:udyoga/ui/bluesky_search.dart';
+import 'package:udyoga/ui/post_planner.dart';
 
 import 'app_harness.dart';
+import 'fake_bluesky.dart';
 
 import 'package:udyoga/ui/hints.dart';
 
@@ -118,22 +123,220 @@ void main() {
     tester.platformDispatcher.clearPlatformBrightnessTestValue();
     tester.view.reset();
 
-    final app = AppHarness(tester)..desktop();
-    await app.open(seed: seedBook);
-    await settledLook(app);
-    await tester.pumpWidget(
-      RepaintBoundary(
-        key: key,
-        child: ProviderScope(overrides: shotOverrides(app), retry: (_, _) => null, child: const UdyogaApp()),
-      ),
-    );
-    await app.settle();
-    await shot('today-desktop');
-    await app.go('Jobs');
-    await shot('jobs-desktop');
-    await app.go('Settings');
-    await shot('settings-desktop');
-    await app.close();
+    for (final dark in [false, true]) {
+      tester.platformDispatcher.platformBrightnessTestValue = dark ? Brightness.dark : Brightness.light;
+      final mode = dark ? 'dark' : 'light';
+      final app = AppHarness(tester)..desktop();
+      await app.open(seed: seedBook);
+      await settledLook(app);
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: key,
+          child: ProviderScope(
+            overrides: shotOverrides(app),
+            retry: (_, _) => null,
+            child: const UdyogaApp(),
+          ),
+        ),
+      );
+      await app.settle();
+      await shot('today-desktop-$mode');
+      await app.go('Jobs');
+      await shot('jobs-desktop-$mode');
+      await app.go('Applications');
+      await shot('applications-desktop-$mode');
+      await app.go('Growth');
+      await shot('growth-desktop-$mode');
+      await app.go('Settings');
+      await shot('settings-desktop-$mode');
+      await app.close();
+    }
+    tester.platformDispatcher.clearPlatformBrightnessTestValue();
+    debugDisableShadows = true;
+  });
+
+  /// Each of [pages] (Today first) at each of [sizes], light and dark, over
+  /// [seed], drawn on a tall view so each page shows whole, into
+  /// [folder]. Contacts is shown with every contact, not only those due.
+  Future<void> pageShots(
+    WidgetTester tester,
+    String folder,
+    Future<void> Function(CareerBook book) seed,
+    List<(double, double)> sizes,
+    List<String> pages,
+  ) async {
+    await tester.runAsync(loadFonts);
+    debugDisableShadows = false;
+    final key = GlobalKey();
+
+    Future<void> shot(String name) async {
+      final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final bytes = await tester.runAsync(() async {
+        final image = await boundary.toImage(pixelRatio: tester.view.devicePixelRatio);
+        return image.toByteData(format: ui.ImageByteFormat.png);
+      });
+      File('$out/$folder/$name.png')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(bytes!.buffer.asUint8List());
+    }
+
+    for (final (width, height) in sizes) {
+      for (final dark in [false, true]) {
+        tester.platformDispatcher.platformBrightnessTestValue = dark ? Brightness.dark : Brightness.light;
+        tester.view.physicalSize = Size(width * 2, height * 2);
+        tester.view.devicePixelRatio = 2;
+        final app = AppHarness(tester);
+        await app.open(seed: seed);
+        await settledLook(app);
+        await tester.pumpWidget(
+          RepaintBoundary(
+            key: key,
+            child: ProviderScope(
+              overrides: shotOverrides(app),
+              retry: (_, _) => null,
+              child: const UdyogaApp(),
+            ),
+          ),
+        );
+        await app.settle();
+        final tag = '${width.round()}-${dark ? 'dark' : 'light'}';
+        for (final page in pages) {
+          if (page != 'Today') await app.go(page);
+          if (page == 'Contacts') await app.tap(find.widgetWithText(ChoiceChip, 'All'));
+          await shot('${page.toLowerCase().replaceAll(' ', '-')}-$tag');
+        }
+        await app.close();
+      }
+    }
+    tester.platformDispatcher.clearPlatformBrightnessTestValue();
+    tester.view.reset();
+    debugDisableShadows = true;
+  }
+
+  // The worst a real book could hold (see seedWorstCase): long names, huge
+  // counts and pay, a one-letter employer, non-Latin text.
+  testWidgets(
+    'worst-case screenshots',
+    skip: out == null,
+    (tester) => pageShots(
+      tester,
+      'worst',
+      seedWorstCase,
+      [(320, 2600), (360, 2600), (1400, 2200)],
+      ['Today', 'Jobs', 'Contacts', 'Find people', 'LinkedIn'],
+    ),
+  );
+
+  // The people pages and Today with replies waiting and someone to keep in
+  // touch with.
+  testWidgets(
+    'people screenshots',
+    skip: out == null,
+    (tester) => pageShots(
+      tester,
+      'people',
+      seedPeople,
+      [(390, 1700), (1400, 1300)],
+      ['Today', 'Contacts', 'Find people', 'LinkedIn'],
+    ),
+  );
+
+  // Conversations (the list, a thread and the Screener), Connected
+  // accounts, the post plan and Bluesky search, light and dark, on a phone
+  // and a desktop, over seedSocial and a fake Bluesky.
+  testWidgets('social screenshots', skip: out == null, (tester) async {
+    await tester.runAsync(loadFonts);
+    debugDisableShadows = false;
+    final key = GlobalKey();
+
+    Future<void> shot(String name) async {
+      // Let fades and toasts finish.
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 500));
+      }
+      final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final bytes = await tester.runAsync(() async {
+        final image = await boundary.toImage(pixelRatio: tester.view.devicePixelRatio);
+        return image.toByteData(format: ui.ImageByteFormat.png);
+      });
+      File('$out/social/$name.png')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(bytes!.buffer.asUint8List());
+    }
+
+    for (final (width, height) in [(390.0, 844.0), (1400.0, 900.0)]) {
+      final phone = width < 840;
+      for (final dark in [false, true]) {
+        tester.platformDispatcher.platformBrightnessTestValue = dark ? Brightness.dark : Brightness.light;
+        tester.view.physicalSize = Size(width * 2, height * 2);
+        tester.view.devicePixelRatio = 2;
+        final server = FakeBluesky()
+          ..actors.addAll([
+            {
+              'did': 'did:plc:jordan',
+              'handle': 'jordan.example.com',
+              'displayName': 'Jordan Example',
+              'description': 'Health informatics in Yorkshire. EPR, clinical safety and the odd ward round.',
+            },
+            {
+              'did': 'did:plc:priya',
+              'handle': 'priya-digital-nurse.example.org',
+              'displayName': 'Priya Example',
+              'description':
+                  'Digital nurse specialist. Writes about e-observations and nursing documentation.',
+            },
+            {
+              'did': 'did:plc:sam',
+              'handle': 'sam.example.net',
+              'displayName': 'Sam Sample',
+              'description': '',
+            },
+          ]);
+        final app = AppHarness(tester);
+        await app.open(seed: seedSocial);
+        await settledLook(app);
+        final bluesky = Bluesky(app.session.book, server.client, app.session.keys.store);
+        await tester.runAsync(() => bluesky.signIn(identifier: myHandle, appPassword: appPassword));
+        await tester.pumpWidget(
+          RepaintBoundary(
+            key: key,
+            child: ProviderScope(
+              overrides: [...shotOverrides(app), blueskyProvider.overrideWithValue(bluesky)],
+              retry: (_, _) => null,
+              child: const UdyogaApp(),
+            ),
+          ),
+        );
+        await app.settle();
+        final tag = '${width.round()}-${dark ? 'dark' : 'light'}';
+
+        await app.go('Conversations');
+        await shot('conversations-$tag');
+        await app.tap(find.text('Jordan Example').first);
+        await shot('thread-$tag');
+        if (phone) await app.tap(find.byTooltip('All conversations'));
+        await app.tap(find.text('Screener (1)'));
+        await app.tap(find.text('someone@example.org').first);
+        await shot('screener-$tag');
+        if (phone) await app.tap(find.byTooltip('All conversations'));
+        await app.tap(find.byTooltip('Connected accounts'));
+        await shot('accounts-$tag');
+        await tester.pageBack();
+        await app.settle();
+
+        await app.go('LinkedIn');
+        await tester.ensureVisible(find.byType(PostPlanner));
+        await shot('post-plan-$tag');
+        await app.go('Find people');
+        await tester.ensureVisible(find.byType(BlueskySearch));
+        await app.tap(find.text(blueskyTopics.first));
+        await tester.ensureVisible(find.byType(BlueskySearch));
+        await shot('bluesky-search-$tag');
+        await app.close();
+      }
+    }
+    tester.platformDispatcher.clearPlatformBrightnessTestValue();
+    tester.view.reset();
     debugDisableShadows = true;
   });
 }

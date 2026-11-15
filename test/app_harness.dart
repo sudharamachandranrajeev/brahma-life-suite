@@ -1,8 +1,10 @@
 import 'package:brahma_core/brahma_core.dart' hide Release, UpdateException, checksumsName, updaterProvider;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:udyoga/app/app.dart';
+import 'package:udyoga/app/modules.dart';
 import 'package:udyoga/app/providers.dart';
 import 'package:udyoga/app/session.dart';
 import 'package:udyoga/domain/book.dart';
@@ -32,15 +34,18 @@ class AppHarness {
     });
   }
 
-  Future<void> run() async {
+  /// Starts the app; [overrides] stand in for more (a fake mail server),
+  /// and [home] shows one widget in place of the shell.
+  Future<void> run({List<Override> overrides = const [], Widget? home}) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           ...udyogaOverrides(session, client: quietClient()),
           siteBrowserProvider.overrideWithValue(() => browser),
+          ...overrides,
         ],
         retry: (_, _) => null,
-        child: const UdyogaApp(),
+        child: home == null ? const UdyogaApp() : UdyogaApp(home: home),
       ),
     );
     await settle();
@@ -77,9 +82,24 @@ class AppHarness {
     await tester.pump();
   }
 
-  /// Goes to a top-level page through the rail (desktop) or the bar and its
-  /// More sheet (phone).
+  /// Goes to a page: through the rail (desktop) or the dock (phone) to its
+  /// navigation entry and, when the entry groups pages, through the entry's
+  /// switch to the page.
   Future<void> go(String page) async {
+    final target = allPages.where((p) => p.label == page).firstOrNull;
+    final group = target == null ? null : groupOf(target.id);
+    await _entry(group?.label ?? page);
+    if (group == null) return;
+    // On a narrow screen a crowded switch shows icons, named by tooltips.
+    final pills = find.byKey(ValueKey('pills.${group.id}'));
+    final label = find.descendant(of: pills, matching: find.text(page));
+    await tap(
+      label.evaluate().isNotEmpty ? label : find.descendant(of: pills, matching: find.byTooltip(page)),
+    );
+  }
+
+  /// Goes to a navigation entry through the rail or the dock.
+  Future<void> _entry(String page) async {
     final rail = find.descendant(of: find.byType(NavigationRail), matching: find.text(page));
     if (rail.evaluate().isNotEmpty) return tap(rail);
     // Phones: the dock holds every screen and scrolls to the one asked for.

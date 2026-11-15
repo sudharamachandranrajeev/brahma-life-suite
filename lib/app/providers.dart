@@ -8,14 +8,20 @@ import 'package:http/http.dart' as http;
 
 import '../db/database.dart';
 import '../domain/advisor.dart';
+import '../domain/bluesky.dart';
 import '../domain/book.dart';
 import '../domain/ai.dart';
 import '../domain/claude.dart';
 import '../domain/claude_code.dart';
 import '../domain/codex.dart';
 import '../domain/companion_service.dart';
+import '../domain/conversations.dart';
 import '../domain/gemini.dart';
 import '../domain/insights.dart';
+import '../domain/linkedin_messages.dart';
+import '../domain/mail.dart';
+import '../domain/mail_sync.dart';
+import '../domain/mail_transport.dart';
 import '../domain/pay.dart';
 import '../domain/profile.dart';
 import '../domain/refresh.dart';
@@ -23,6 +29,7 @@ import '../domain/n8n.dart';
 import '../domain/subscription.dart';
 import '../domain/update.dart';
 import '../ui/hints.dart';
+import 'mail_alerts.dart';
 import 'security_checks.dart';
 import 'session.dart';
 
@@ -184,6 +191,153 @@ final storiesProvider = _rows<$CareerStoriesTable, Story>(
   ],
 );
 
+final handlesProvider = _rows<$ContactHandlesTable, ContactHandle>((db) => db.contactHandles);
+
+/// Every conversation with its person and newest message, newest first.
+final threadRowsProvider = FutureProvider<List<ThreadRow>>((ref) {
+  ref.watch(revisionProvider);
+  return ref.watch(sessionProvider).book.threadRows();
+});
+
+/// A thread's messages and notes, oldest first.
+final threadMessagesProvider = FutureProvider.family<List<ThreadMessage>, String>((ref, id) {
+  ref.watch(revisionProvider);
+  return ref.watch(sessionProvider).book.messagesIn(id);
+});
+
+/// People to get back to today or earlier: thread follow-ups and "keep in
+/// touch" dates (see [ConversationBook.dueFollowUps]).
+final dueFollowUpsProvider = FutureProvider<List<FollowUpDue>>((ref) {
+  ref.watch(revisionProvider);
+  return ref.watch(sessionProvider).book.dueFollowUps(today());
+});
+
+/// A thread another page asked the Conversations page to open, such as a
+/// reply waiting on Today. The Conversations page opens it and clears it.
+class OpenThread extends Notifier<String?> {
+  @override
+  String? build() => null;
+  void open(String id) => state = id;
+  void clear() => state = null;
+}
+
+final openThreadProvider = NotifierProvider<OpenThread, String?>(OpenThread.new);
+
+/// What the user has sent by hand on LinkedIn lately (see [Pace]).
+final paceProvider = FutureProvider<Pace>((ref) {
+  ref.watch(revisionProvider);
+  return ref.watch(sessionProvider).book.pace(DateTime.now());
+});
+
+/// Contact records that look like the same person.
+final mergeSuggestionsProvider = FutureProvider<List<MergeSuggestion>>((ref) {
+  ref.watch(revisionProvider);
+  return ref.watch(sessionProvider).book.mergeSuggestions();
+});
+
+/// First-degree connections at the employers the user is aiming for.
+final knownAtTargetsProvider = FutureProvider<List<KnownAt>>((ref) {
+  ref.watch(revisionProvider);
+  return ref.watch(sessionProvider).book.knownAtTargets();
+});
+
+final targetEmployersProvider = FutureProvider<List<String>>((ref) {
+  ref.watch(revisionProvider);
+  return ref.watch(sessionProvider).book.targetEmployers();
+});
+
+/// IMAP and SMTP over the network; tests put a fake in its place.
+final mailTransportProvider = Provider<MailTransport>((ref) => const EnoughMailTransport());
+
+/// Connected mail accounts: settings on this device, passwords in its
+/// keychain.
+final mailServiceProvider = Provider<MailService>((ref) {
+  final s = ref.watch(sessionProvider);
+  return MailService(s.book, s.keys.store, ref.watch(mailTransportProvider));
+});
+
+final mailAccountsProvider = FutureProvider<List<ChannelAccount>>((ref) {
+  ref.watch(revisionProvider);
+  return ref.watch(mailServiceProvider).accounts();
+});
+
+/// Bluesky: search, posting and DMs with the user's app password.
+final blueskyProvider = Provider<Bluesky>((ref) {
+  final s = ref.watch(sessionProvider);
+  return Bluesky(s.book, ref.watch(httpClientProvider), s.keys.store);
+});
+
+final blueskyAccountProvider = FutureProvider<BlueskyAccount?>((ref) {
+  ref.watch(revisionProvider);
+  return ref.watch(blueskyProvider).account();
+});
+
+/// The channels Udyoga can send on by itself, once the user connects an
+/// account (e-mail, Bluesky DMs). Empty until then: every message is sent
+/// by the user and logged. LinkedIn never has one.
+final channelSendersProvider = Provider<List<ChannelSender>>((ref) {
+  final service = ref.watch(mailServiceProvider);
+  final bluesky = ref.watch(blueskyAccountProvider).value;
+  return [
+    for (final a in ref.watch(mailAccountsProvider).value ?? const <ChannelAccount>[])
+      EmailSender(service, a),
+    if (bluesky != null && bluesky.dms) BlueskySender(ref.watch(blueskyProvider), bluesky),
+  ];
+});
+
+class MailSyncState {
+  const MailSyncState({this.running = false, this.status = ''});
+  final bool running;
+  final String status;
+}
+
+/// Checks the connected mail accounts and Bluesky DMs: at start and with
+/// the hourly refresh when the last check is over 15 minutes old, or now
+/// when the user asks.
+class MailSyncController extends Notifier<MailSyncState> {
+  @override
+  MailSyncState build() => const MailSyncState();
+
+  Future<MailSyncReport?> run({bool force = false}) async {
+    if (state.running) return null;
+    state = const MailSyncState(running: true, status: 'Checking messages…');
+    try {
+      final mail = await ref.read(mailServiceProvider).syncDue(force: force);
+      // Bluesky DMs ride along; a Bluesky problem does not hide the mail.
+      var dms = (added: 0, alerts: const <MailAlert>[]);
+      String? bskyProblem;
+      try {
+        dms = await ref.read(blueskyProvider).syncDue(force: force);
+      } catch (e) {
+        bskyProblem = 'Bluesky: ${describeError(e)}';
+      }
+      final report = (
+        added: mail.added + dms.added,
+        alerts: [...mail.alerts, ...dms.alerts],
+        failed: [...mail.failed, ?bskyProblem],
+      );
+      state = MailSyncState(
+        status: [
+          if (report.added == 0)
+            'No new messages from your contacts.'
+          else
+            '${report.added} new message${report.added == 1 ? '' : 's'}.',
+          ...report.failed,
+        ].join('\n'),
+      );
+      ref.read(revisionProvider.notifier).bump();
+      await ref.read(mailNotifierProvider).show(report.alerts).catchError((_) {});
+      return report;
+    } catch (e) {
+      state = MailSyncState(status: describeError(e));
+      ref.read(revisionProvider.notifier).bump();
+      rethrow;
+    }
+  }
+}
+
+final mailSyncProvider = NotifierProvider<MailSyncController, MailSyncState>(MailSyncController.new);
+
 /// The folders this device reads documents from.
 final documentFoldersProvider = FutureProvider<List<String>>((ref) {
   ref.watch(revisionProvider);
@@ -297,10 +451,14 @@ class RefreshController extends Notifier<RefreshState> {
 
 final refreshProvider = NotifierProvider<RefreshController, RefreshState>(RefreshController.new);
 
-/// Runs the routine refresh now and then hourly while the app is open;
-/// each run does only what is due. Read once at start-up.
+/// Runs the routine refresh and the mail check now and then hourly while
+/// the app is open; each run does only what is due. Read once at start-up.
 final refreshTickerProvider = Provider<void>((ref) {
-  void tick() => ref.read(refreshProvider.notifier).run().catchError((_) => null).ignore();
+  void tick() {
+    ref.read(refreshProvider.notifier).run().catchError((_) => null).ignore();
+    ref.read(mailSyncProvider.notifier).run().catchError((_) => null).ignore();
+  }
+
   tick();
   final timer = Timer.periodic(const Duration(hours: 1), (_) => tick());
   ref.onDispose(timer.cancel);

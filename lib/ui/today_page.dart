@@ -2,17 +2,22 @@ import 'package:brahma_core/brahma_core.dart' hide Release, UpdateException, che
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../app/navigation.dart';
 import '../app/providers.dart';
 import '../db/database.dart';
+import '../domain/conversations.dart';
 import '../domain/pipeline.dart';
 import '../domain/profile.dart';
 import 'applications_page.dart';
 import 'coach_page.dart';
 import 'common.dart';
 import 'contacts_page.dart';
+import 'job_page.dart';
 import 'jobs_page.dart';
-import 'look.dart';
+import 'kit/kit.dart';
+import 'look.dart' hide Pace;
 import 'offer_checks.dart';
+import 'today_hero.dart';
 
 /// Next steps, from setting up to the day's chasing.
 List<({IconData icon, String text})> nextSteps({
@@ -119,6 +124,41 @@ class TodayPage extends ConsumerWidget {
       practice: practice.length,
       update: ref.watch(updateProvider).value?.version,
     );
+    // The next deadline: a saved job closing or an offer check due, soonest
+    // first.
+    final deadlines = <Deadline>[
+      for (final j in closing)
+        (
+          title: j.title,
+          detail: j.company,
+          date: j.closing!,
+          when: relativeDay(j.closing!, now),
+          open: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => JobPage(j.id))),
+        ),
+      for (final c in checks)
+        (
+          title: c.title,
+          detail: byId[c.applicationId]!.title,
+          date: c.due!,
+          when: relativeDay(c.due!, now),
+          open: () =>
+              Navigator.of(context).push(MaterialPageRoute(builder: (_) => ApplicationPage(c.applicationId))),
+        ),
+    ]..sort((a, b) => a.date.compareTo(b.date));
+    final next = deadlines.firstOrNull;
+    // Threads where they wrote last, or that are marked replied.
+    final replies = filterThreads(
+      ref.watch(threadRowsProvider).value ?? const <ThreadRow>[],
+      filter: ThreadFilter.needsReply,
+      today: now,
+    );
+    // People due from a thread's follow-up or a "keep in touch" date, with
+    // why and where. Those dates also fill the contact's own follow-up, so
+    // they are left out of Follow up today rather than listed twice.
+    final keepInTouch = ref.watch(dueFollowUpsProvider).value ?? const <FollowUpDue>[];
+    final chaseLeads = dueLeads.where((l) => !keepInTouch.any((d) => d.contact.id == l.id)).toList();
+    final followUps = dueApps.length + chaseLeads.length + keepInTouch.length;
+    final pace = ref.watch(paceProvider).value;
     final sent = apps.where((a) => a.applied != null).length;
     // Heard back: shortlisted or further, up to accepted.
     final heard = apps.where((a) {
@@ -130,6 +170,7 @@ class TodayPage extends ConsumerWidget {
       title: 'Today',
       banner: 'page.today',
       actions: [
+        const PaletteButton(),
         HintIconButton(
           'apps.calendar',
           icon: Icons.event_available_outlined,
@@ -139,32 +180,48 @@ class TodayPage extends ConsumerWidget {
       ],
       children: [
         _Greeting(profile),
-        TiltGrid(
-          minWidth: 160,
-          children: [
-            KpiTile(
-              label: 'Follow-ups due',
-              value: '${dueApps.length + dueLeads.length}',
-              icon: Icons.notifications_active_outlined,
-              status: dueApps.isEmpty && dueLeads.isEmpty
-                  ? null
-                  : (color: Status.warning.color, icon: Status.warning.icon),
-              caption: dueApps.isEmpty && dueLeads.isEmpty ? 'All caught up' : 'Chase them today',
+        TodayHero(
+          counts: [
+            StatTile(
+              label: 'Applied',
+              icon: Icons.send_outlined,
+              value: sent,
+              caption: sent == 0 ? 'Nothing sent yet' : 'Applications sent',
             ),
-            KpiTile(label: 'In progress', value: '${open.length}', icon: Icons.send_outlined),
-            KpiTile(
+            StatTile(
               label: 'Interviews',
-              value: '${interviews.length}',
               icon: Icons.record_voice_over_outlined,
+              value: interviews.length,
+              caption: interviews.isEmpty ? 'None booked' : 'Coming up',
             ),
-            KpiTile(label: 'New matches', value: '${fresh.length}', icon: Icons.work_outline),
-            KpiTile(
+            StatTile(
+              label: 'Follow-ups due',
+              icon: Icons.notifications_active_outlined,
+              value: followUps,
+              caption: followUps == 0 ? 'All caught up' : 'Chase today',
+              status: followUps == 0 ? null : Status.warning,
+            ),
+            StatTile(
+              label: 'In progress',
+              icon: Icons.timelapse,
+              value: open.length,
+              caption: open.isEmpty ? 'No open applications' : 'Open applications',
+            ),
+            StatTile(
+              label: 'New matches',
+              icon: Icons.work_outline,
+              value: fresh.length,
+              caption: fresh.isEmpty ? 'None new yet' : 'To look through',
+            ),
+            StatTile(
               label: 'Response rate',
-              value: sent == 0 ? '–' : '${(heard * 100 / sent).round()}%',
               icon: Icons.mark_email_unread_outlined,
+              value: sent == 0 ? null : (heard * 100 / sent).round(),
+              suffix: '%',
               caption: sent == 0 ? 'No applications sent yet' : '$heard of $sent heard back',
             ),
           ],
+          deadline: next == null ? null : _withNiceDate(next),
         ),
         if (refresh.running)
           Padding(
@@ -177,6 +234,69 @@ class TodayPage extends ConsumerWidget {
               ],
             ),
           ),
+        _NeedsYou(
+          [
+            if (replies.isNotEmpty)
+              SectionCard(
+                title: 'Replies waiting',
+                child: _FirstFew([
+                  for (final r in replies) _ReplyTile(r, onTap: () => openThread(ref, r.thread.id)),
+                ], onMore: () => goToPage(ref, 'conversations')),
+              ),
+            if (dueApps.isNotEmpty || chaseLeads.isNotEmpty)
+              SectionCard(
+                title: 'Follow up today',
+                child: _FirstFew([
+                  for (final a in dueApps) ApplicationTile(a),
+                  for (final l in chaseLeads) LeadTile(l),
+                ], onMore: () => goToPage(ref, dueApps.isNotEmpty ? 'applications' : 'contacts')),
+              ),
+            if (keepInTouch.isNotEmpty)
+              SectionCard(
+                title: 'Keep in touch',
+                child: _FirstFew([
+                  for (final d in keepInTouch)
+                    _KeepInTouchTile(
+                      d,
+                      onTap: d.thread == null
+                          ? () => openConversationWith(context, ref, d.contact)
+                          : () => openThread(ref, d.thread!.id),
+                    ),
+                ], onMore: () => goToPage(ref, 'contacts')),
+              ),
+            if (checks.isNotEmpty)
+              SectionCard(
+                title: 'Offer checks due',
+                child: Column(
+                  children: [
+                    for (final c in checks)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(checkStatus(c, now).icon, color: checkStatus(c, now).color),
+                        title: Text(c.title),
+                        subtitle: Text(
+                          '${byId[c.applicationId]!.title} · due ${niceDate(c.due!)} (${relativeDay(c.due!, now)})',
+                        ),
+                        onTap: () =>
+                            Navigator.of(context)
+                                .push(MaterialPageRoute(builder: (_) => ApplicationPage(c.applicationId))),
+                      ),
+                  ],
+                ),
+              ),
+            if (closing.isNotEmpty)
+              SectionCard(
+                title: 'Closing this week',
+                child: _FirstFew([
+                  for (final j in closing) JobTile(j, list: 'closing'),
+                ], onMore: () => goToPage(ref, 'jobs')),
+              ),
+          ],
+          count: replies.length + followUps + checks.length + closing.length,
+          pace: pace == null || pace.level == PaceLevel.calm ? null : pace,
+          nothingLabel: fresh.isEmpty ? 'Open Jobs' : 'See new matches',
+          onNothing: () => goToPage(ref, 'jobs'),
+        ),
         if ((eveningNow && (checkIn == null || checkIn.entry.isEmpty)) || toConfirm > 0)
           SectionCard(
             title: 'Your coach',
@@ -235,38 +355,6 @@ class TodayPage extends ConsumerWidget {
               ],
             ),
           ),
-        if (dueApps.isNotEmpty || dueLeads.isNotEmpty)
-          SectionCard(
-            title: 'Follow up today',
-            child: Column(
-              children: [for (final a in dueApps) ApplicationTile(a), for (final l in dueLeads) LeadTile(l)],
-            ),
-          ),
-        if (checks.isNotEmpty)
-          SectionCard(
-            title: 'Offer checks due',
-            child: Column(
-              children: [
-                for (final c in checks)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(checkStatus(c, now).icon, color: checkStatus(c, now).color),
-                    title: Text(c.title),
-                    subtitle: Text(
-                      '${byId[c.applicationId]!.title} · due ${niceDate(c.due!)} (${relativeDay(c.due!, now)})',
-                    ),
-                    onTap: () =>
-                        Navigator.of(context)
-                            .push(MaterialPageRoute(builder: (_) => ApplicationPage(c.applicationId))),
-                  ),
-              ],
-            ),
-          ),
-        if (closing.isNotEmpty)
-          SectionCard(
-            title: 'Closing this week',
-            child: Column(children: [for (final j in closing) JobTile(j, list: 'closing')]),
-          ),
         SectionCard(
           title: 'Best new matches',
           child: fresh.isEmpty
@@ -277,6 +365,10 @@ class TodayPage extends ConsumerWidget {
     );
   }
 }
+
+/// The deadline with its date written out ("24 Oct 2026").
+Deadline _withNiceDate(Deadline d) =>
+    (title: d.title, detail: d.detail, date: niceDate(d.date), when: d.when, open: d.open);
 
 class _Greeting extends StatelessWidget {
   const _Greeting(this.p);
@@ -296,12 +388,14 @@ class _Greeting extends StatelessWidget {
               children: [
                 OrgLogo(p.name, size: 46),
                 const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Welcome back', style: t.bodyMedium?.copyWith(color: muted)),
-                    Text(p.name, style: t.titleMedium),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Welcome back', style: t.bodyMedium?.copyWith(color: muted)),
+                      Text(p.name, style: t.titleMedium, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -316,6 +410,230 @@ class _Greeting extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// What needs doing today: replies to answer, follow-ups, offer checks and
+/// jobs closing, each group a card arriving in turn. When nothing does, it
+/// says so and offers the one useful next step.
+class _NeedsYou extends StatelessWidget {
+  const _NeedsYou(
+    this.cards, {
+    required this.count,
+    required this.nothingLabel,
+    required this.onNothing,
+    this.pace,
+  });
+  final List<Widget> cards;
+  final int count;
+
+  /// LinkedIn sending that is busy or past the safe pace; null when calm.
+  final Pace? pace;
+  final String nothingLabel;
+  final VoidCallback onNothing;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
+            children: [
+              Flexible(child: Text('Needs you', style: t.titleLarge)),
+              if (count > 0) ...[
+                const SizedBox(width: 10),
+                StatusPill(count == 1 ? '1 thing' : '$count things', status: Status.warning),
+              ],
+            ],
+          ),
+        ),
+        if (pace case final p?) _PaceHint(p),
+        if (cards.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: SpotlightCard(
+              child: Row(
+                children: [
+                  Icon(Icons.task_alt, color: Status.good.color),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Text('Nothing needs you today.')),
+                  const SizedBox(width: 8),
+                  TextButton(onPressed: onNothing, child: Text(nothingLabel)),
+                ],
+              ),
+            ),
+          )
+        else
+          for (final (i, card) in cards.indexed) BlurFadeIn(index: i, child: card),
+      ],
+    );
+  }
+}
+
+/// The first few of a long list, with a link to the page holding the rest,
+/// so thirty follow-ups don't bury everything below them.
+class _FirstFew extends StatelessWidget {
+  const _FirstFew(this.tiles, {required this.onMore});
+  final List<Widget> tiles;
+  final VoidCallback onMore;
+  static const shown = 5;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      ...tiles.take(shown),
+      if (tiles.length > shown)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: onMore,
+            icon: const Icon(Icons.arrow_forward, size: 18),
+            label: Text('See all ${tiles.length}'),
+          ),
+        ),
+    ],
+  );
+}
+
+/// A thread waiting on the user: where it is, who, and how their last
+/// message starts.
+class _ReplyTile extends StatelessWidget {
+  const _ReplyTile(this.row, {required this.onTap});
+  final ThreadRow row;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final last = row.last;
+    return _PersonRow(
+      name: row.contact?.name ?? senderName(row.thread).ifEmpty('Unknown sender'),
+      channel: row.thread.channel,
+      onTap: onTap,
+      detail: last == null
+          ? null
+          : Text(
+              last.body.replaceAll('\n', ' '),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: t.bodyMedium?.copyWith(color: muted),
+            ),
+    );
+  }
+}
+
+/// Someone to get back to: why, and how overdue.
+class _KeepInTouchTile extends StatelessWidget {
+  const _KeepInTouchTile(this.due, {required this.onTap});
+  final FollowUpDue due;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = today();
+    return _PersonRow(
+      name: due.contact.name,
+      channel: due.thread?.channel,
+      onTap: onTap,
+      detail: Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        children: [
+          StatusPill(due.why),
+          StatusPill(
+            due.due == now ? 'Due today' : 'Due ${relativeDay(due.due, now)}',
+            status: followUpStatus(due.due, now),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A person's row in a Needs you card: their initials, name and channel,
+/// with a line of detail under them.
+class _PersonRow extends StatelessWidget {
+  const _PersonRow({required this.name, required this.channel, required this.onTap, this.detail});
+  final String name;
+  final String? channel;
+  final VoidCallback onTap;
+  final Widget? detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(Radii.sm),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            OrgLogo(name, size: 36),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(name, style: t.titleSmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ),
+                      if (channel case final c?) ...[const SizedBox(width: 8), ChannelChip(c)],
+                    ],
+                  ),
+                  if (detail case final d?) ...[const SizedBox(height: 4), d],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The pace guard, when LinkedIn sending is busy or past the safe pace.
+class _PaceHint extends StatelessWidget {
+  const _PaceHint(this.pace);
+  final Pace pace;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final status = pace.level == PaceLevel.slowDown ? Status.serious : Status.warning;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: SpotlightCard(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.speed, color: status.color),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(pace.advice, style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 4),
+                  Text(
+                    pace.summary,
+                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

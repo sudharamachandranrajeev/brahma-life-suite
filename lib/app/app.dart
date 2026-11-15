@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../ui/look.dart';
 import 'check_in_reminder.dart';
 import 'modules.dart';
+import 'navigation.dart';
+import 'post_reminders.dart';
 import 'providers.dart';
 import 'settings_page.dart';
 
@@ -18,7 +20,9 @@ class UdyogaApp extends StatelessWidget {
     debugShowCheckedModeBanner: false,
     theme: udyogaTheme(Brightness.light),
     darkTheme: udyogaTheme(Brightness.dark),
-    builder: (context, child) => AppLockGate(child: Backdrop(child: child ?? const SizedBox.shrink())),
+    builder: (context, child) => ShadBridge(
+      child: AppLockGate(child: Backdrop(child: child ?? const SizedBox.shrink())),
+    ),
     home: home,
   );
 }
@@ -73,16 +77,20 @@ class _RootState extends ConsumerState<_Root> {
 
   @override
   Widget build(BuildContext context) => LinkHandler(
-    child: AppShell(
-      destinations: allDestinations,
-      floating: true,
-      // The routine refresh: at start-up, then hourly while open (it runs
-      // only what is due), and
-      // the check-in reminders for the next two weeks are rescheduled.
-      onStart: (ref) {
-        Future.microtask(() => ref.read(refreshTickerProvider)).ignore();
-        ref.syncReminders().ignore();
-      },
+    child: UdyogaPalette(
+      child: AppShell(
+        destinations: allDestinations,
+        floating: true,
+        // The routine refresh: at start-up, then hourly while open (it runs
+        // only what is due), and
+        // the check-in reminders for the next two weeks are rescheduled,
+        // with the post plan's.
+        onStart: (ref) {
+          Future.microtask(() => ref.read(refreshTickerProvider)).ignore();
+          ref.syncReminders().ignore();
+          ref.syncPostPlanReminders().ignore();
+        },
+      ),
     ),
   );
 }
