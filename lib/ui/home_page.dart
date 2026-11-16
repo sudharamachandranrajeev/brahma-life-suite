@@ -6,6 +6,7 @@ import '../app/providers.dart';
 import '../db/database.dart';
 import '../domain/achievements.dart';
 import '../domain/stats.dart';
+import '../domain/udyoga_link.dart';
 import 'charts.dart';
 import 'common.dart';
 import 'course_page.dart';
@@ -99,6 +100,7 @@ class _Body extends ConsumerWidget {
                     ),
                   ),
                 ),
+                const _OfferedPlans(),
                 FadeIn(
                   delay: const Duration(milliseconds: 60),
                   child: _LevelCard(s, streaks: streaks),
@@ -189,6 +191,88 @@ class _Body extends ConsumerWidget {
     for (final c in s.courses.where((c) => c.status == 'doing'))
       if (s.topicsOf(c.id).where((t) => t.done == null).firstOrNull case final t?) (c, t),
   ].take(4).toList();
+}
+
+/// Plans another app sent through sync, re-read after every write and
+/// every sync that brings changes.
+final _offeredProvider = FutureProvider<List<OfferedPlan>>((ref) {
+  ref.watch(revisionProvider);
+  return ref.watch(sessionProvider).book.offeredPlans();
+});
+
+/// A study plan from Udyoga, waiting to be added.
+class _OfferedPlans extends ConsumerStatefulWidget {
+  const _OfferedPlans();
+
+  @override
+  ConsumerState<_OfferedPlans> createState() => _OfferedPlansState();
+}
+
+class _OfferedPlansState extends ConsumerState<_OfferedPlans> {
+  /// Put off until Vidya opens again.
+  final _later = <String>{};
+
+  @override
+  Widget build(BuildContext context) {
+    final offers = [
+      for (final o in ref.watch(_offeredProvider).value ?? const <OfferedPlan>[])
+        if (!_later.contains('${o.row.id}|${o.row.updated}')) o,
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final o in offers)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: SectionCard(
+              title: 'A study plan from ${_appName(o.row.source)}',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    '${o.plan.title}: ${o.plan.courses.length} courses, ${o.plan.cards.length} review cards. '
+                    'Adding it again later updates the same program; nothing is added twice.',
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      FilledButton.icon(
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add to Vidya'),
+                        onPressed: () async {
+                          final r = await ref.mutate(
+                            (s) => s.book.addOfferedPlan(
+                              o,
+                              today: today(),
+                              now: DateTime.now().toUtc().toIso8601String(),
+                            ),
+                          );
+                          if (context.mounted) {
+                            showMessage(
+                              context,
+                              '${o.plan.title}: ${r.courses} courses, ${r.topics} topics, ${r.cards} cards, '
+                              '${r.skills} skills and ${r.notes} notes added.',
+                            );
+                          }
+                        },
+                      ),
+                      TextButton(
+                        onPressed: () => setState(() => _later.add('${o.row.id}|${o.row.updated}')),
+                        child: const Text('Not now'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  static String _appName(String id) =>
+      id.isEmpty ? 'another app' : '${id[0].toUpperCase()}${id.substring(1)}';
 }
 
 class _LevelCard extends StatelessWidget {

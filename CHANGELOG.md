@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- A study plan Udyoga sends through sync is offered on Home and added in one tap; adding a re-sent plan updates the same program. What you finish and the skills you rate go back to Udyoga by themselves. Importing a plan file still works without sync.
+- Sync: *Change server address* follows your sync server to another computer without signing in again; edits that clashed with another device's are kept for you to bring back; the Sync card shows changes waiting to send.
+
 ## 0.4.0 (2026-11-15)
 
 - Interview readiness: import the study plan Udyoga (the career app) makes from your gaps, and Home shows each interview competency against its target, with a button to rehearse only your own interview stories when they are due.

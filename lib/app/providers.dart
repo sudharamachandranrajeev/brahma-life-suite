@@ -7,6 +7,7 @@ import '../db/database.dart';
 import '../domain/achievements.dart';
 import '../domain/review.dart';
 import '../domain/stats.dart';
+import '../domain/udyoga_link.dart';
 import '../ui/hints.dart';
 import 'session.dart';
 
@@ -75,6 +76,7 @@ extension Mutate on WidgetRef {
     final result = await write(s);
     final fresh = await s.book.unlockNew(today());
     if (fresh.isNotEmpty) read(celebrationsProvider.notifier).add(fresh);
+    await s.book.reportToUdyoga(now: DateTime.now().toUtc().toIso8601String());
     changed();
     return result;
   }
