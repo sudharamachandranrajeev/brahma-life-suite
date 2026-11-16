@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="https://github.com/sudharamachandranrajeev/udyoga"><img src="branding/udyoga-512.png" alt="Udyoga" width="140"></a>
+  <a href="https://github.com/sudharamachandranrajeev/udyoga-career-manager"><img src="branding/udyoga-512.png" alt="Udyoga" width="140"></a>
   <br>
   Udyoga
   <br>
@@ -9,10 +9,10 @@
 <h4 align="center">Find jobs that fit, see honestly where you stand, tailor every application and practise for the interview.</h4>
 
 <p align="center">
-  <a href="https://github.com/sudharamachandranrajeev/udyoga/releases"><img src="https://img.shields.io/github/v/release/sudharamachandranrajeev/udyoga?include_prereleases&color=2f6bff&label=download" alt="Latest release"></a>
+  <a href="https://github.com/sudharamachandranrajeev/udyoga-career-manager/releases"><img src="https://img.shields.io/github/v/release/sudharamachandranrajeev/udyoga-career-manager?include_prereleases&color=2f6bff&label=download" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/works%20on-Linux%20%7C%20Windows%20%7C%20Android-555" alt="Works on Linux, Windows and Android">
   <img src="https://img.shields.io/badge/your%20data-encrypted-2e7d32" alt="Your data is encrypted">
-  <a href="https://github.com/sudharamachandranrajeev/brahma"><img src="https://img.shields.io/badge/part%20of-Brahma-8a5cf6" alt="Part of Brahma"></a>
+  <a href="https://github.com/sudharamachandranrajeev/brahma-life-suite"><img src="https://img.shields.io/badge/part%20of-Brahma-8a5cf6" alt="Part of Brahma"></a>
 </p>
 
 <p align="center">
@@ -50,6 +50,11 @@ or a Claude or ChatGPT plan.
   steps, pay and how AI is changing each one.
 - 💼 **LinkedIn helper** – profile score, posts, comments and connection notes, all drafted for
   you to post yourself. Nothing is automated on your account.
+- 💬 **Every conversation in one place** – e-mail, LinkedIn, Bluesky, calls and meetings as chat
+  threads. Each one says who it is with, where it is happening and where you found them.
+- 🧑‍🤝‍🧑 **People in your field** – who you already know at the employers you are applying to,
+  search links for people in the same role, named contacts from job adverts, and NHS and
+  digital-health communities to join.
 - 🔒 **Private by design** – data is encrypted on the device. Sync is optional, and one account
   works in every Brahma app.
 
@@ -62,7 +67,11 @@ or a Claude or ChatGPT plan.
 | Jobs | Five free job-site feeds, plus an optional AI web search of employer and public-sector sites |
 | Fit | Quick score on every job; full verdict with matched requirements, gaps and how serious each is |
 | Applications | Preparing, applied, screening, interview, offer, closed; list or board; *No reply* after six weeks; drafted chasers, thank-you notes and feedback requests; reminders to your calendar or an `.ics` file |
-| Contacts | Recruiters and hiring managers from public pages or added by you, each with a follow-up date and a drafted first message |
+| Contacts | Recruiters and hiring managers from public pages or added by you, each with a follow-up date, a drafted first message, where you found them and why you may contact them; *Forget this person* and *Do not contact* |
+| Conversations | Chat threads per person on e-mail, LinkedIn, Bluesky, phone and in person; filters for replies waiting and follow-ups due; a Screener for strangers; LinkedIn messages are copied, opened and logged by you |
+| E-mail | Gmail, iCloud, Yahoo, Fastmail or any IMAP server with an app password; only mail with people you saved is kept; send and reply from a thread |
+| Find people | Connections at your target employers (from the LinkedIn ZIP), search links by role, employer and place, named contacts from adverts, Bluesky search, a list of NHS and digital-health communities |
+| Posts | A weekly post plan with reminders; you post on LinkedIn yourself, and on Bluesky when you press Post |
 | Interview | Mixed, competency (STAR), technical, toughest panel, and AI and change rounds; live measures of length, speaking time, filler words, "I" against "we", figures and STAR coverage; seven-part AI review |
 | Career | Assessment, career map of five to eight paths, redone monthly when the AI routine is on |
 | Growth | Certifications, courses and experience to get; *Ideas and wins* notes the AI reads in every request; LinkedIn data import (the ZIP LinkedIn sends you) |
@@ -98,7 +107,7 @@ or a Claude or ChatGPT plan.
 
 ### Step 1 – Download
 
-Open the [releases page](https://github.com/sudharamachandranrajeev/udyoga/releases) and, under
+Open the [releases page](https://github.com/sudharamachandranrajeev/udyoga-career-manager/releases) and, under
 the newest release, pick the file for your device:
 
 | Your device | File to download | Works on |
@@ -122,8 +131,8 @@ Each release also has `SHA256SUMS.txt`, a list of fingerprints to check the file
    ```
 3. Open **Udyoga** from your app menu.
 
-It installs for your user only. It needs GTK 3, libsecret and the desktop keyring (the app that
-stores passwords) running. To remove it later: `./install.sh --uninstall`. Your data stays.
+It installs for your user only. It needs GTK 3, WebKitGTK 4.1 (job sites open in it), libsecret
+and the desktop keyring (the app that stores passwords) running. To remove it later: `./install.sh --uninstall`. Your data stays.
 
 </details>
 
@@ -177,7 +186,7 @@ Udyoga never sees your login. Its permission lasts 24 hours, and it asks to rene
 ### Step 5 (optional) – Use it on more than one device
 
 1. Set up a free sync server, at home or on Cloudflare. The
-   [Brahma sync server guide](https://github.com/sudharamachandranrajeev/brahma/tree/main/server)
+   [Brahma sync server guide](https://github.com/sudharamachandranrajeev/brahma-life-suite/tree/main/server)
    walks you through it.
 2. In Udyoga, choose **Sync across my devices** (at first launch, or in **Settings → Sync**).
 3. **Write down the recovery key** it shows and keep it somewhere safe, away from the device.
@@ -198,7 +207,9 @@ flowchart LR
 - **The AI** (Gemini, Claude or ChatGPT) gets the text it needs for each task, such as your
   profile and one job advert. Your keys stay in the encrypted settings.
 - **LinkedIn** is only opened through its own links and the ZIP you import. Udyoga never signs in
-  to it or posts for you.
+  to it, reads its pages or posts for you. You send every message and connection request.
+- **E-mail and Bluesky** are reached with app passwords you make for Udyoga. The passwords stay in
+  the device's keychain and are never synced. Only messages with people you saved are kept.
 
 > [!IMPORTANT]
 > Your password and recovery key are the only ways to unlock synced data. If you lose both, nobody
@@ -257,7 +268,7 @@ the data file you download yourself. Why it works this way: [docs/n8n](docs/n8n/
 You need [Git](https://git-scm.com) and [Flutter](https://flutter.dev) 3.47.
 
 ```bash
-git clone https://github.com/sudharamachandranrajeev/udyoga
+git clone https://github.com/sudharamachandranrajeev/udyoga-career-manager
 cd udyoga
 flutter pub get
 flutter run -d linux        # or windows, or an Android device
@@ -267,7 +278,7 @@ UDYOGA_SHOTS=/tmp/shots flutter test test/screenshots_test.dart     # render the
 scripts/make-icons.sh                                               # app icons from branding/udyoga.svg
 ```
 
-- `brahma_core` comes from the [brahma](https://github.com/sudharamachandranrajeev/brahma) repo.
+- `brahma_core` comes from the [brahma](https://github.com/sudharamachandranrajeev/brahma-life-suite) repo.
   To work on both at once, add a `pubspec_overrides.yaml` (ignored by git) with
   `dependency_overrides: brahma_core: path: ../brahma/core`.
 - Tests use made-up people and companies only. CI runs analyse and test on each push. A `v*` tag
@@ -287,6 +298,8 @@ scripts/make-icons.sh                                               # app icons 
 - [http](https://pub.dev/packages/http), [file_picker](https://pub.dev/packages/file_picker),
   [archive](https://pub.dev/packages/archive), [url_launcher](https://pub.dev/packages/url_launcher),
   [intl](https://pub.dev/packages/intl)
+- [enough_mail](https://pub.dev/packages/enough_mail) for IMAP and SMTP, under the Mozilla Public
+  License 2.0; used as published, with none of its files changed (its source is at the link)
 - Job data from free public job-site feeds
 - Fonts [Inter](https://rsms.me/inter/) and [Plus Jakarta Sans](https://github.com/tokotype/PlusJakartaSans),
   bundled under the SIL Open Font License
@@ -299,11 +312,11 @@ Udyoga is one app in the **Brahma** family. They share one sign-in and one sync 
 
 | App | What it does |
 | --- | --- |
-| [brahma](https://github.com/sudharamachandranrajeev/brahma) | The shared core and the all-in-one app |
-| [artha](https://github.com/sudharamachandranrajeev/artha) | Money: accounts, spending, bills and investments |
-| [graha-anveshana](https://github.com/sudharamachandranrajeev/graha-anveshana) | Find a home to rent or buy |
-| [vahana-anveshana](https://github.com/sudharamachandranrajeev/vahana-anveshana) | Find a car |
-| [vidya](https://github.com/sudharamachandranrajeev/vidya) | Learning, flashcards and focus |
+| [brahma](https://github.com/sudharamachandranrajeev/brahma-life-suite) | The shared core and the all-in-one app |
+| [artha](https://github.com/sudharamachandranrajeev/artha-personal-finance) | Money: accounts, spending, bills and investments |
+| [graha-anveshana](https://github.com/sudharamachandranrajeev/graha-anveshana-property-search) | Find a home to rent or buy |
+| [vahana-anveshana](https://github.com/sudharamachandranrajeev/vahana-anveshana-car-manager) | Find a car |
+| [vidya](https://github.com/sudharamachandranrajeev/vidya-learning-manager) | Learning, flashcards and focus |
 
 ## License
 

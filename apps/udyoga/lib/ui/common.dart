@@ -2,14 +2,22 @@ import 'package:brahma_core/brahma_core.dart' hide Release, UpdateException, che
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart' show Bidi;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../domain/ai.dart';
 import '../domain/json.dart';
+import 'kit/kit.dart';
 
 /// "2026-10-24T11:00" as "24 Oct 2026, 11:00".
 String niceDateTime(String at) =>
     at.length > 10 ? '${niceDate(at.substring(0, 10))}, ${at.substring(11, 16)}' : niceDate(at);
+
+/// Right to left when most of [text] is in a right-to-left script (Arabic,
+/// Hebrew), so a message in one reads from the right.
+TextDirection textDirectionOf(String text) =>
+    Bidi.detectRtlDirectionality(text) ? TextDirection.rtl : TextDirection.ltr;
 
 /// Now as local yyyy-MM-ddTHH:mm.
 String nowLocal() => DateTime.now().toIso8601String().substring(0, 16);
@@ -112,6 +120,38 @@ Future<T?> runAi<T>(
   } finally {
     notifier.dispose();
   }
+}
+
+/// [AsyncView] for a list of cards: while the list first loads it shows
+/// skeleton cards in the list's shape rather than a spinner.
+class AsyncList<T> extends StatelessWidget {
+  const AsyncList(this.value, {super.key, required this.builder, this.onRetry});
+  final AsyncValue<T> value;
+  final Widget Function(T data) builder;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) => value.isLoading && !value.hasValue && !value.hasError
+      ? const SkeletonCards()
+      : AsyncView(value, builder: builder, onRetry: onRetry);
+}
+
+/// Shown where an opened item has since been deleted (here or on another
+/// device): says so, with the way back.
+class Gone extends StatelessWidget {
+  const Gone({super.key, required this.icon, required this.title});
+  final IconData icon;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => EmptyState(
+    icon: icon,
+    title: title,
+    message: 'It may have been deleted on another device.',
+    actions: [
+      FilledButton.tonal(onPressed: () => Navigator.of(context).maybePop(), child: const Text('Go back')),
+    ],
+  );
 }
 
 /// A plain text field with a label.

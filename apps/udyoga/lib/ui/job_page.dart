@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:brahma_core/brahma_core.dart' hide Release, UpdateException, checksumsName, updaterProvider;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,16 +9,20 @@ import '../db/database.dart';
 import '../domain/countries.dart';
 import '../domain/insights.dart';
 import '../domain/json.dart';
+import '../domain/listing_check.dart';
 import '../domain/n8n.dart';
 import '../domain/pipeline.dart';
 import '../domain/resume.dart';
 import 'applications_page.dart';
 import 'common.dart';
 import 'contacts_page.dart';
+import 'employer_cards.dart';
 import 'interview_page.dart';
 import 'jobs_page.dart';
+import 'kit/kit.dart';
 import 'look.dart';
 import 'resume_page.dart';
+import 'site_page.dart';
 
 const _verdicts = {
   'strong': ('Strong fit', Status.good),
@@ -47,8 +53,8 @@ class JobPage extends ConsumerWidget {
       return Scaffold(
         appBar: AppBar(),
         body: all.isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : const EmptyState(icon: Icons.work_outline, title: 'This job was removed'),
+            ? const Padding(padding: EdgeInsets.all(16), child: SkeletonCards(count: 2))
+            : Gone(icon: Icons.work_outline, title: 'This job was removed'),
       );
     }
     final hasAi = ref.watch(advisorProvider).value != null;
@@ -66,7 +72,7 @@ class JobPage extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.open_in_new),
             tooltip: 'Open the advert',
-            onPressed: () => openLink(context, j.url),
+            onPressed: () => openSite(context, url: j.url, title: j.title),
           ),
         PopupMenuButton<String>(
           onSelected: (v) => switch (v) {
@@ -101,6 +107,19 @@ class JobPage extends ConsumerWidget {
       ),
       children: [
         _Header(j, fit: fit, heroTag: heroTag),
+        if (checkListing(j, today: today()) case final check when !check.clear)
+          SectionCard(
+            title: check.problems.isEmpty ? 'Check before applying' : 'This job has closed',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final p in check.problems)
+                  Padding(padding: const EdgeInsets.only(bottom: 6), child: StatusLabel(Status.serious, p)),
+                for (final c in check.cautions)
+                  Padding(padding: const EdgeInsets.only(bottom: 6), child: StatusLabel(Status.warning, c)),
+              ],
+            ),
+          ),
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -145,6 +164,8 @@ class JobPage extends ConsumerWidget {
                 )
               : FitView(fit),
         ),
+        PayChangeCard(j),
+        EmployerCard(j),
         SectionCard(
           title: 'Tailored CV',
           hint: 'job.tailor',
@@ -327,9 +348,13 @@ class JobPage extends ConsumerWidget {
     );
     if (sent == null || !context.mounted) return;
     final appId = await ref.mutate((s) => s.book.applyFor(j, today: today(), sent: sent));
-    if (j.url.isNotEmpty && !sent && context.mounted) await openLink(context, j.url);
-    if (context.mounted) {
-      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ApplicationPage(appId)));
+    if (!context.mounted) return;
+    final nav = Navigator.of(context);
+    unawaited(nav.push(MaterialPageRoute(builder: (_) => ApplicationPage(appId))));
+    // Preparing: the site opens in Udyoga with the answers beside it, and
+    // closing it lands on the application.
+    if (j.url.isNotEmpty && !sent) {
+      unawaited(openSite(context, url: j.url, title: j.title, applicationId: appId));
     }
   }
 
@@ -400,17 +425,19 @@ class _Header extends StatelessWidget {
             runSpacing: 6,
             children: [
               if (j.salaryText.isNotEmpty || shortSalary(j).isNotEmpty)
-                Pill(j.salaryText.ifEmpty(shortSalary(j)), icon: Icons.payments_outlined),
-              if (j.remote) const Pill('Remote', icon: Icons.public),
-              if (j.country.isNotEmpty) Pill(Country.nameOf(j.country), icon: Icons.place_outlined),
-              if (j.posted != null) Pill('Posted ${niceDate(j.posted!)}'),
+                StatusPill(j.salaryText.ifEmpty(shortSalary(j)), icon: Icons.payments_outlined),
+              if (j.remote) const StatusPill('Remote', icon: Icons.public),
+              if (j.country.isNotEmpty) StatusPill(Country.nameOf(j.country), icon: Icons.place_outlined),
+              if (j.posted != null) StatusPill('Posted ${niceDate(j.posted!)}'),
+              if (checkListing(j, today: now).official)
+                const StatusPill('Official site', status: Status.good, icon: Icons.verified_outlined),
               if (j.closing != null)
-                Pill(
+                StatusPill(
                   'Closes ${niceDate(j.closing!)} (${relativeDay(j.closing!, now)})',
                   status: j.closing!.compareTo(addDays(now, 7)) <= 0 ? Status.serious : null,
                   icon: Icons.event_outlined,
                 ),
-              Pill('Found ${niceDate(j.found)} via ${sourceName(j.source)}'),
+              StatusPill('Found ${niceDate(j.found)} via ${sourceName(j.source)}'),
             ],
           ),
         ],
@@ -475,7 +502,7 @@ class FitView extends StatelessWidget {
         if (fit.employer.isNotEmpty) ...[const Subhead('The employer'), SelectableText(fit.employer)],
         if (fit.keywords.isNotEmpty) ...[
           const Subhead('Keywords your CV needs'),
-          Wrap(spacing: 6, runSpacing: 6, children: [for (final k in fit.keywords) Chip(label: Text(k))]),
+          Wrap(spacing: 6, runSpacing: 6, children: [for (final k in fit.keywords) StatusPill(k)]),
         ],
         if (fit.tips.isNotEmpty) ...[
           const Subhead('How to apply'),

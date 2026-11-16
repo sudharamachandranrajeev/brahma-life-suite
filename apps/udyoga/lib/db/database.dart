@@ -12,12 +12,24 @@ part 'database.g.dart';
     JobListings,
     JobApplications,
     JobEvents,
+    JobChecks,
+    JobArchive,
     CareerContacts,
     CareerResumes,
     CareerReports,
     CareerGrowth,
     CareerPractice,
     CareerAnswers,
+    CareerDocuments,
+    CareerQuestions,
+    CareerJournal,
+    CareerStories,
+    ContactHandles,
+    Conversations,
+    Messages,
+    CareerPosts,
+    BridgeStudyPlans,
+    BridgeStudyProgress,
     Prefs,
     Outbox,
     SyncCursors,
@@ -35,17 +47,29 @@ class AppDatabase extends _$AppDatabase with SyncedDatabase {
     'job_listings',
     'job_applications',
     'job_events',
+    'job_checks',
+    'job_archive',
     'career_contacts',
     'career_resumes',
     'career_reports',
     'career_growth',
     'career_practice',
     'career_answers',
+    'career_documents',
+    'career_questions',
+    'career_journal',
+    'career_stories',
+    'career_handles',
+    'career_conversations',
+    'career_messages',
+    'career_posts',
+    'bridge_study_plans',
+    'bridge_study_progress',
     'prefs',
   ];
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -55,6 +79,58 @@ class AppDatabase extends _$AppDatabase with SyncedDatabase {
         await customStatement(sql);
       }
     },
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await m.createTable(jobChecks);
+        await m.createTable(jobArchive);
+        for (final sql in _v2Indexes) {
+          await customStatement(sql);
+        }
+      }
+      if (from < 3) {
+        await m.createTable(careerDocuments);
+        await m.createTable(careerQuestions);
+        await m.createTable(careerJournal);
+        await m.createTable(careerStories);
+        for (final sql in _v3Indexes) {
+          await customStatement(sql);
+        }
+      }
+      if (from < 4) {
+        // Only the columns not there yet, so a half-finished upgrade can run
+        // again.
+        final have = await customSelect('PRAGMA table_info(career_contacts)')
+            .map((r) => r.read<String>('name'))
+            .get();
+        for (final c in [
+          careerContacts.sourceUrl,
+          careerContacts.sourceKind,
+          careerContacts.foundOn,
+          careerContacts.basis,
+          careerContacts.basisNote,
+          careerContacts.doNotContact,
+          careerContacts.keepInTouchWeeks,
+        ]) {
+          if (!have.contains(c.name)) await m.addColumn(careerContacts, c);
+        }
+        await m.createTable(contactHandles);
+        await m.createTable(conversations);
+        await m.createTable(messages);
+        for (final sql in _v4Indexes) {
+          await customStatement(sql);
+        }
+      }
+      if (from < 5) {
+        await m.createTable(careerPosts);
+        for (final sql in _v5Indexes) {
+          await customStatement(sql);
+        }
+      }
+      if (from < 6) {
+        await m.createTable(bridgeStudyPlans);
+        await m.createTable(bridgeStudyProgress);
+      }
+    },
   );
 
   static const _indexes = [
@@ -62,5 +138,33 @@ class AppDatabase extends _$AppDatabase with SyncedDatabase {
     'CREATE INDEX job_events_application ON job_events (application_id)',
     'CREATE INDEX career_answers_session ON career_answers (session_id)',
     'CREATE INDEX career_reports_kind ON career_reports (kind, created)',
+    ..._v2Indexes,
+    ..._v3Indexes,
+    ..._v4Indexes,
+    ..._v5Indexes,
   ];
+
+  /// Added in schema 2 (pre-employment checks and the archive).
+  static const _v2Indexes = [
+    'CREATE INDEX job_checks_application ON job_checks (application_id)',
+    'CREATE INDEX job_archive_application ON job_archive (application_id)',
+  ];
+
+  /// Added in schema 3 (documents, profile questions, check-ins, stories).
+  static const _v3Indexes = [
+    'CREATE INDEX IF NOT EXISTS career_documents_hash ON career_documents (hash)',
+    'CREATE INDEX IF NOT EXISTS career_journal_day ON career_journal (day)',
+    'CREATE INDEX IF NOT EXISTS career_questions_status ON career_questions (status)',
+  ];
+
+  /// Added in schema 4 (conversations, handles and messages).
+  static const _v4Indexes = [
+    'CREATE INDEX IF NOT EXISTS career_handles_contact ON career_handles (contact_id)',
+    'CREATE INDEX IF NOT EXISTS career_conversations_contact ON career_conversations (contact_id)',
+    'CREATE INDEX IF NOT EXISTS career_conversations_last ON career_conversations (last_at)',
+    'CREATE INDEX IF NOT EXISTS career_messages_conversation ON career_messages (conversation_id, sent_at)',
+  ];
+
+  /// Added in schema 5 (the post plan).
+  static const _v5Indexes = ['CREATE INDEX IF NOT EXISTS career_posts_at ON career_posts (at)'];
 }

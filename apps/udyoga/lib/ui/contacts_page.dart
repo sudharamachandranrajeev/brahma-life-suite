@@ -10,7 +10,10 @@ import '../domain/insights.dart';
 import '../domain/json.dart';
 import '../domain/pipeline.dart';
 import 'applications_page.dart';
+import '../domain/conversations.dart';
 import 'common.dart';
+import 'conversations_page.dart';
+import 'kit/kit.dart';
 import 'linkedin_page.dart';
 import 'look.dart';
 
@@ -65,6 +68,7 @@ class _ContactsPageState extends ConsumerState<ContactsPage> {
         label: const Text('Add contact'),
       ),
       children: [
+        const MergeSuggestions(),
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -78,7 +82,7 @@ class _ContactsPageState extends ConsumerState<ContactsPage> {
           ],
         ),
         const SizedBox(height: 12),
-        AsyncView(
+        AsyncList(
           ref.watch(leadsProvider),
           builder: (all) {
             final now = today();
@@ -91,12 +95,28 @@ class _ContactsPageState extends ConsumerState<ContactsPage> {
               _ => all.where((l) => l.status == filter).toList(),
             };
             if (list.isEmpty) {
+              // One next step: see everyone when a filter hides them, else
+              // add the first person.
+              final others = all.isNotEmpty && filter != 'all';
               return EmptyState(
                 icon: Icons.contacts_outlined,
                 title: filter == 'due' ? 'Nobody to follow up today' : 'No contacts here',
                 message: hasAi
                     ? 'Find recruiters, hiring managers and agencies with the AI, from a job, or add people you know.'
                     : 'Add recruiters, hiring managers and people who could refer you.',
+                actions: [
+                  if (others)
+                    FilledButton.tonal(
+                      onPressed: () => setState(() => filter = 'all'),
+                      child: Text('See all ${all.length}'),
+                    )
+                  else
+                    FilledButton.tonalIcon(
+                      onPressed: () => editLead(context, ref, null),
+                      icon: const Icon(Icons.person_add_alt),
+                      label: const Text('Add contact'),
+                    ),
+                ],
               );
             }
             return Column(children: [for (final l in list) LeadTile(l)]);
@@ -153,49 +173,65 @@ class LeadTile extends ConsumerWidget {
     final now = today();
     final t = Theme.of(context).textTheme;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final found = l.sourceKind == 'other' ? '' : foundOnText(l);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Tilt(
-        child: Card(
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () => _actions(context, ref, l),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  OrgLogo(l.name.ifEmpty(l.company), size: 40),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(l.name, style: t.titleMedium),
-                        Text(
-                          [l.title, l.company].where((s) => s.isNotEmpty).join(' · '),
-                          style: t.bodyMedium?.copyWith(color: muted),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: [
-                            Pill(leadKinds[l.kind] ?? l.kind, icon: _kindIcons[l.kind]),
-                            if (l.followUp != null && l.status != 'cold')
-                              Pill(
-                                '${leadStatuses[l.status] ?? l.status} · follow up ${relativeDay(l.followUp!, now)}',
-                                status: followUpStatus(l.followUp!, now),
-                              )
-                            else
-                              Pill(leadStatuses[l.status] ?? l.status),
-                          ],
-                        ),
-                      ],
+        child: SpotlightCard(
+          padding: EdgeInsets.zero,
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: () => _actions(context, ref, l),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    OrgLogo(l.name.ifEmpty(l.company), size: 40),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(l.name, style: t.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          Text(
+                            [l.title, l.company].where((s) => s.isNotEmpty).join(' · '),
+                            style: t.bodyMedium?.copyWith(color: muted),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              StatusPill(leadKinds[l.kind] ?? l.kind, icon: _kindIcons[l.kind]),
+                              if (l.doNotContact)
+                                const StatusPill('Do not contact', status: Status.serious, icon: Icons.block),
+                              if (l.followUp != null && l.status != 'cold')
+                                StatusPill(
+                                  '${leadStatuses[l.status] ?? l.status} · follow up ${relativeDay(l.followUp!, now)}',
+                                  status: followUpStatus(l.followUp!, now),
+                                )
+                              else
+                                StatusPill(leadStatuses[l.status] ?? l.status),
+                              // Where they were found and the basis for contacting
+                              // them: on record, not to act on.
+                              if (found.isNotEmpty)
+                                StatusPill(found, icon: Icons.place_outlined, quiet: true),
+                              StatusPill(
+                                lawfulBases[l.basis] ?? l.basis,
+                                icon: Icons.verified_user_outlined,
+                                quiet: true,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -217,19 +253,40 @@ class LeadTile extends ConsumerWidget {
             Text(l.name, style: Theme.of(sheet).textTheme.titleLarge),
             Text([l.title, l.company].where((s) => s.isNotEmpty).join(', ')),
             if (l.notes.isNotEmpty) ...[const SizedBox(height: 8), SelectableText(l.notes)],
-            if (l.source.isNotEmpty) ...[
-              const SizedBox(height: 4),
+            const SizedBox(height: 4),
+            if (foundOnText(l).isNotEmpty || l.sourceUrl.isNotEmpty)
               InkWell(
-                onTap: () => openLink(context, l.source),
-                child: Text('Found at ${l.source}', maxLines: 1, overflow: TextOverflow.ellipsis),
-              ),
-            ],
+                onTap: l.sourceUrl.isNotEmpty || l.source.startsWith('http')
+                    ? () => openLink(context, l.sourceUrl.ifEmpty(l.source))
+                    : null,
+                child: Text(
+                  'Found on ${foundOnText(l).ifEmpty(l.sourceUrl)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              )
+            else
+              const Text('Where you found them is not recorded. Add it with Edit.'),
+            Text(
+              'Basis: ${[lawfulBases[l.basis] ?? l.basis, l.basisNote].where((s) => s.isNotEmpty).join(': ')}',
+            ),
+            if (l.email.isNotEmpty && emailKind(l.email) == 'personal')
+              const Text('Personal e-mail address: PECR consent rules apply to marketing-style e-mail.'),
             if (l.lastContact != null) Text('Last contact ${niceDate(l.lastContact!)}'),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
+                if (!l.doNotContact)
+                  FilledButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(sheet);
+                      await openConversationWith(context, ref, l);
+                    },
+                    icon: const Icon(Icons.forum_outlined),
+                    label: const Text('Conversation'),
+                  ),
                 if (l.linkedin.isNotEmpty)
                   OutlinedButton.icon(
                     onPressed: () => openLink(context, l.linkedin),
@@ -316,6 +373,8 @@ class LeadTile extends ConsumerWidget {
                 ),
               ],
             ),
+            const Divider(height: 24),
+            ComplianceActions(l, onForgotten: () => Navigator.pop(sheet)),
           ],
         ),
       ),
@@ -366,6 +425,15 @@ Future<void> editLead(BuildContext context, WidgetRef ref, Lead? l) async {
   final phone = TextEditingController(text: l?.phone);
   final linkedin = TextEditingController(text: l?.linkedin);
   final notes = TextEditingController(text: l?.notes);
+  final source = TextEditingController(text: l?.source);
+  final sourceUrl = TextEditingController(text: l?.sourceUrl);
+  final basisNote = TextEditingController(text: l?.basisNote);
+  var sourceKind = l?.sourceKind ?? 'other';
+  var foundOn = l?.foundOn ?? today();
+  // An older contact with no date keeps none unless the user picks one.
+  var foundOnPicked = l == null || l.foundOn != null;
+  var basis = l?.basis ?? 'legitimate_interest';
+  var keepInTouch = l?.keepInTouchWeeks ?? 0;
   var kind = l?.kind ?? 'recruiter';
   var status = l?.status ?? 'new';
   var followUp = l?.followUp ?? today();
@@ -393,18 +461,59 @@ Future<void> editLead(BuildContext context, WidgetRef ref, Lead? l) async {
       ),
       DateField(value: followUp, label: 'Follow up on', onChanged: (v) => setState(() => followUp = v)),
       const SizedBox(height: 12),
+      Choice<int>(
+        label: 'Keep in touch',
+        value: keepInTouch,
+        options: {for (final e in keepInTouchChoices.entries) e.key ?? 0: e.value},
+        onChanged: (v) => setState(() => keepInTouch = v),
+      ),
       Field(notes, 'Notes', lines: 3),
+      const Subhead('Where you found them'),
+      Choice<String>(
+        label: 'Found on',
+        value: sourceKind,
+        options: sourceKinds,
+        onChanged: (v) => setState(() => sourceKind = v),
+      ),
+      Field(source, 'Source', hint: 'e.g. NHS Jobs advert for a Practice Manager'),
+      Field(sourceUrl, 'Source link', hint: 'https://…'),
+      DateField(
+        value: foundOn,
+        label: 'Found on (date)',
+        onChanged: (v) => setState(() {
+          foundOn = v;
+          foundOnPicked = true;
+        }),
+      ),
+      const SizedBox(height: 12),
+      Choice<String>(
+        label: 'Basis for contacting them',
+        value: basis,
+        options: lawfulBases,
+        onChanged: (v) => setState(() => basis = v),
+      ),
+      Field(basisNote, 'Why (optional)', hint: 'e.g. recruits for the roles I am applying for'),
       if (l != null)
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
             style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
             onPressed: () async {
-              await ref.mutate((s) => s.book.remove(s.db.careerContacts, l.id));
+              final ok = await confirm(
+                context,
+                title: 'Forget ${l.name}?',
+                message:
+                    'This deletes ${l.name}, every address and profile you hold for them, and every conversation '
+                    'and message, on all your devices. It cannot be undone.',
+                action: 'Forget',
+                destructive: true,
+              );
+              if (!ok) return;
+              await ref.mutate((s) => s.book.forgetContact(l.id));
               if (context.mounted) Navigator.of(context, rootNavigator: true).pop(false);
             },
-            icon: const Icon(Icons.delete_outline),
-            label: const Text('Delete'),
+            icon: const Icon(Icons.delete_forever_outlined),
+            label: const Text('Forget this person'),
           ),
         ),
     ],
@@ -423,17 +532,87 @@ Future<void> editLead(BuildContext context, WidgetRef ref, Lead? l) async {
             email: Value(email.text.trim()),
             phone: Value(phone.text.trim()),
             linkedin: Value(linkedin.text.trim()),
-            source: Value(l?.source ?? ''),
+            source: Value(source.text.trim()),
             status: Value(status),
             lastContact: Value(l?.lastContact),
             followUp: Value(status == 'cold' ? null : followUp),
             jobId: Value(l?.jobId),
             notes: Value(notes.text.trim()),
+            sourceUrl: Value(sourceUrl.text.trim()),
+            sourceKind: Value(sourceKind),
+            foundOn: Value(foundOnPicked ? foundOn : null),
+            basis: Value(basis),
+            basisNote: Value(basisNote.text.trim()),
           ),
           id,
         ),
       );
+      final weeks = keepInTouch == 0 ? null : keepInTouch;
+      if (weeks != l?.keepInTouchWeeks) {
+        await ref.mutate((s) => s.book.setKeepInTouch(id, weeks, today: today()));
+      }
+      final saved = await ref.read(sessionProvider).book.contact(id);
+      if (saved != null) await ref.mutate((s) => s.book.syncHandles(saved));
       return null;
     },
   );
+}
+
+/// Opens the newest conversation with [l], or starts one.
+Future<void> openConversationWith(BuildContext context, WidgetRef ref, Lead l) async {
+  final threads = await ref.read(sessionProvider).book.conversationsOf(l.id);
+  if (!context.mounted) return;
+  final id = threads.firstOrNull?.id ?? await startConversationDialog(context, ref, contact: l);
+  if (id == null || !context.mounted) return;
+  await Navigator.of(context)
+      .push(MaterialPageRoute<void>(builder: (_) => ConversationsPage(openThread: id)));
+}
+
+/// Records that look like the same person, each with a Merge button.
+class MergeSuggestions extends ConsumerWidget {
+  const MergeSuggestions({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final list = ref.watch(mergeSuggestionsProvider).value ?? const <MergeSuggestion>[];
+    if (list.isEmpty) return const SizedBox.shrink();
+    return SectionCard(
+      title: 'Possibly the same person',
+      child: Column(
+        children: [
+          for (final m in list)
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${_who(m.keep)} and ${_who(m.other)}: ${m.why.toLowerCase()}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    final ok = await confirm(
+                      context,
+                      title: 'Merge these records?',
+                      message:
+                          '${_who(m.other)} becomes part of ${_who(m.keep)}: their addresses, profiles and '
+                          'conversations move across, and the second record is deleted.',
+                      action: 'Merge',
+                    );
+                    if (!ok) return;
+                    await ref.mutate(
+                      (s) => s.book.mergeContacts(keepId: m.keep.id, otherId: m.other.id, today: today()),
+                    );
+                  },
+                  child: const Text('Merge'),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  static String _who(Lead l) => l.company.isEmpty ? l.name : '${l.name} (${l.company})';
 }
