@@ -210,6 +210,10 @@ void main() {
     for (final text in ['When did you start?', 'E-observations pilot', 'cv.txt']) {
       expect(find.textContaining(text), findsWidgets, reason: text);
     }
+    await app.tapText('Send to Vidya');
+    await app.settle();
+    expect(find.textContaining('Sent to Vidya'), findsOneWidget);
+    expect(find.text('Send again'), findsOneWidget);
     await app.go('Settings');
     expect(find.text('Daily check-in'), findsOneWidget);
     expect(find.text('18:30'), findsOneWidget);

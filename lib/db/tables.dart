@@ -465,6 +465,14 @@ class CareerStories extends Table with SyncedRow {
   TextColumn get added => text()();
 }
 
+/// Shared with Vidya (see brahma_core's bridges.dart): Udyoga writes the
+/// study plan, Vidya writes what was finished.
+@DataClassName('StudyPlan')
+class BridgeStudyPlans extends Table with SyncedRow, StudyPlanColumns {}
+
+@DataClassName('StudyProgressRow')
+class BridgeStudyProgress extends Table with SyncedRow, StudyProgressColumns {}
+
 @DataClassName('Pref')
 class Prefs extends Table with SyncedRow, PrefColumns {}
 
