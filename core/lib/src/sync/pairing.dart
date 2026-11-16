@@ -13,6 +13,8 @@ import 'sync_engine.dart' show SyncException;
 ///   the first account.
 /// * `<app>://pair?s=<server>&p=<record>&k=<secret>`: shown by a signed-in
 ///   device so another one can join it (see [PairingCrypto]).
+/// * `brahma://moved?s=<server>`: printed after the server moved to another
+///   computer (Adisthanam's move-out), so signed-in devices follow it.
 ///
 /// Any Brahma app's scheme is accepted: the links are about the shared
 /// account, and the scheme only picks which app a scanned code opens.
@@ -42,6 +44,8 @@ sealed class BrahmaLink {
           throw SyncException('That pairing link is incomplete. Copy the whole link again');
         }
         return PairingLink(validateServerUrl(server), id, secret, scheme: uri.scheme);
+      case 'moved':
+        return MovedLink(validateServerUrl(server));
     }
     throw SyncException('This version does not know that link. Update the app and try again');
   }
@@ -74,6 +78,15 @@ final class PairingLink extends BrahmaLink {
     host: 'pair',
     queryParameters: {'s': '$server', 'p': id, 'k': base64Url.encode(secret).replaceAll('=', '')},
   ).toString();
+}
+
+/// The account's server now runs at [server]; nothing secret is in it; the
+/// app checks that server knows this account before switching to it.
+final class MovedLink extends BrahmaLink {
+  const MovedLink(super.server);
+
+  @override
+  String toString() => Uri(scheme: 'brahma', host: 'moved', queryParameters: {'s': '$server'}).toString();
 }
 
 /// What a new device sends: who it is and the public key to answer to.

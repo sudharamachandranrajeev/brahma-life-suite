@@ -29,17 +29,23 @@ Future<void> openBrahmaLink(BuildContext context, WidgetRef ref, String text) as
   }
   final session = await ref.read(coreSessionProvider).keys.session();
   if (!context.mounted) return;
-  if (session != null) {
-    showMessage(context, switch (link) {
-      PairingLink() =>
-        'This device already syncs as ${session['email']}. To add another device, scan '
-            'the code with that device instead.',
-      SetupLink() =>
-        'This device already syncs as ${session['email']}. Sign out first to use another server.',
-    });
-    return;
-  }
+  final signedIn = session != null;
   switch (link) {
+    case MovedLink(:final server) when signedIn:
+      await showMoveServer(context, ref, server: '$server');
+    case MovedLink(:final server):
+      showMessage(context, 'This device does not sync yet. Set up sync with the server at $server.');
+    case PairingLink() when signedIn:
+      showMessage(
+        context,
+        'This device already syncs as ${session['email']}. To add another device, scan '
+        'the code with that device instead.',
+      );
+    case SetupLink() when signedIn:
+      showMessage(
+        context,
+        'This device already syncs as ${session['email']}. Sign out first to use another server.',
+      );
     case SetupLink():
       await showSyncDialog(context, mode: SyncMode.signUp, setup: link);
     case PairingLink():
@@ -367,6 +373,11 @@ class _JoinDialogState extends ConsumerState<_JoinDialog> {
         await _ask(link);
       case SetupLink():
         Navigator.pop(context, link);
+      case MovedLink():
+        setState(
+          () => _error =
+              'That link is for devices that already sync. Sign in with e-mail to that server instead.',
+        );
     }
   }
 

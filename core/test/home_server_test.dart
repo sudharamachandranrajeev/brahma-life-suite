@@ -103,6 +103,69 @@ void main() {
     expect((await checkServer(url)).info!.needsSetup, isFalse);
   }, skip: skip);
 
+  test('a device follows its account to a moved server, and only there', () async {
+    Future<(Process, String)> serve(Directory d) async {
+      final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final port = socket.port;
+      await socket.close();
+      expect(
+        (await Process.run(
+          'node',
+          [home, 'init', '$port'],
+          environment: {'BRAHMA_SERVER_HOME': d.path},
+        )).exitCode,
+        0,
+      );
+      final p = await Process.start('node', [home, 'serve'], environment: {'BRAHMA_SERVER_HOME': d.path});
+      final ready = Completer<void>();
+      p.stdout.transform(utf8.decoder).listen((t) {
+        if (t.contains('listening') && !ready.isCompleted) ready.complete();
+      });
+      await ready.future.timeout(const Duration(seconds: 20));
+      return (p, 'http://127.0.0.1:$port');
+    }
+
+    final c = _device('c');
+    await c.signIn(server: url, email: 'me@home.test', password: 'correct horse battery');
+
+    // The moved copy: same data and signing key, another address.
+    final moved = await Directory.systemTemp.createTemp('brahma-moved-');
+    await File('${dir.path}/server.env').copy('${moved.path}/server.env');
+    final copy = await Process.run('node', [
+      '-e',
+      'new (require("node:sqlite").DatabaseSync)(process.argv[1]).exec(`VACUUM INTO \'\${process.argv[2]}\'`)',
+      '${dir.path}/brahma.db',
+      '${moved.path}/brahma.db',
+    ]);
+    expect(copy.exitCode, 0, reason: '${copy.stderr}');
+    final other = await Directory.systemTemp.createTemp('brahma-other-');
+    final (movedServer, movedUrl) = await serve(moved);
+    final (otherServer, otherUrl) = await serve(other);
+    try {
+      await expectLater(
+        c.moveServer(otherUrl),
+        throwsA(
+          isA<SyncException>().having((e) => e.message, 'message', contains("doesn't know your account")),
+        ),
+      );
+      expect((await c.vault.session())!['server'], url, reason: 'a refused move changes nothing');
+      await expectLater(c.moveServer(url), throwsA(isA<SyncException>()));
+
+      await c.moveServer(movedUrl);
+      expect((await c.vault.session())!['server'], movedUrl);
+      expect((await c.api()).server.toString(), movedUrl);
+      expect(await (await c.api()).isOwner(), isTrue);
+      expect(BrahmaLink.parse('brahma://moved?s=${Uri.encodeComponent(movedUrl)}'), isA<MovedLink>());
+    } finally {
+      movedServer.kill();
+      otherServer.kill();
+      await movedServer.exitCode;
+      await otherServer.exitCode;
+      await moved.delete(recursive: true);
+      await other.delete(recursive: true);
+    }
+  }, skip: skip);
+
   testWidgets('the wizard: device only, or sync through a home server', (tester) async {
     HttpOverrides.global = null;
     bool? finished;

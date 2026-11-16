@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import '../db/synced_database.dart';
 import '../db/store.dart';
 import '../security/crypto.dart';
+import 'kept_edits.dart';
 
 class SyncException implements Exception {
   SyncException(this.message);
@@ -62,7 +63,13 @@ class SyncEngine {
 
   String _aad(String device, int seq) => '${VaultCrypto.version}|$owner|$device|$seq';
 
-  Future<SyncResult> run() async => SyncResult(await push(), await pull());
+  /// Pulls first, then pushes: an edit still waiting here meets the other
+  /// devices' edits of the same row before it goes out, so a clash is seen
+  /// and the losing version kept (see [KeptEdit]).
+  Future<SyncResult> run() async {
+    final pulled = await pull();
+    return SyncResult(await push(), pulled);
+  }
 
   Future<int> _setting(String key) async => int.parse(await db.localSetting(key) ?? '0');
 
@@ -231,7 +238,24 @@ class SyncEngine {
         .customSelect('SELECT hlc FROM "$table" WHERE id = ?', variables: [Variable(id)])
         .getSingleOrNull();
     store.clock.receive(hlc);
-    if (local != null && local.read<String>('hlc').compareTo(hlc) >= 0) return;
+    // A local edit still waiting to go out was never seen by the device that
+    // wrote this one, and that device had not seen this one: both edited the
+    // same row at once. The newest still wins, but the other version is kept
+    // here, so the person can bring it back instead of losing it unseen.
+    final clash = local != null && await _unsent(table, id);
+    if (local != null) {
+      final mine = local.read<String>('hlc');
+      if (mine.compareTo(hlc) >= 0) {
+        if (clash && mine != hlc) await KeptEdit.keep(db, table, row);
+        return;
+      }
+    }
+    if (clash) {
+      final mine = await db
+          .customSelect('SELECT * FROM "$table" WHERE id = ?', variables: [Variable(id)])
+          .getSingle();
+      await KeptEdit.keep(db, table, mine.data);
+    }
 
     await _upsert(table, {for (final c in info.$columns) c.name}, row);
     final child = db.childRows[table];
@@ -250,6 +274,15 @@ class SyncEngine {
       }
     }
   }
+
+  Future<bool> _unsent(String table, String id) async =>
+      (await db
+              .customSelect(
+                'SELECT 1 FROM outbox WHERE entity = ? AND row_id = ?',
+                variables: [Variable(table), Variable(id)],
+              )
+              .get())
+          .isNotEmpty;
 
   Future<void> _upsert(String table, Set<String> known, Map<String, Object?> row) async {
     final cols = [

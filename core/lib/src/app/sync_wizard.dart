@@ -137,6 +137,9 @@ class _SyncSetupWizardState extends ConsumerState<SyncSetupWizard> {
         case PairingLink() && final link:
           _server.clear();
           _joinWith(link);
+        case MovedLink(:final server):
+          _server.text = '$server';
+          _check();
       }
     } catch (e) {
       setState(() => _error = describeError(e));

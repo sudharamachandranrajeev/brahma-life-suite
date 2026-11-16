@@ -9,6 +9,7 @@ import '../db/store.dart';
 import '../identity.dart';
 import '../security/crypto.dart';
 import '../security/key_vault.dart';
+import '../sync/kept_edits.dart';
 import '../sync/sync_engine.dart';
 import '../ui/hints.dart';
 import 'session.dart';
@@ -109,12 +110,26 @@ final hintsProvider = AsyncNotifierProvider<Hints, HintsState>(Hints.new);
 enum SyncPhase { signedOut, idle, running, failed }
 
 class SyncState {
-  const SyncState(this.phase, {this.lastSync, this.error, this.email, this.server});
+  const SyncState(
+    this.phase, {
+    this.lastSync,
+    this.error,
+    this.email,
+    this.server,
+    this.pending = 0,
+    this.kept = 0,
+  });
   final SyncPhase phase;
   final String? lastSync;
   final String? error;
   final String? email;
   final String? server;
+
+  /// Changes made here that the server does not hold yet.
+  final int pending;
+
+  /// Edits that clashed with another device's and were kept (see [KeptEdit]).
+  final int kept;
 }
 
 /// Runs sync on start, a few seconds after each change and every 15 minutes.
@@ -168,7 +183,14 @@ class SyncController extends Notifier<SyncState> {
     }
     final email = session['email'] as String?, server = session['server'] as String?;
     final last = await s.db.localSetting('sync.last');
-    state = SyncState(SyncPhase.running, lastSync: last, email: email, server: server);
+    state = SyncState(
+      SyncPhase.running,
+      lastSync: last,
+      email: email,
+      server: server,
+      pending: state.pending,
+      kept: state.kept,
+    );
     try {
       var pulled = 0;
       for (final store in ref.read(syncStoresProvider)) {
@@ -181,21 +203,68 @@ class SyncController extends Notifier<SyncState> {
       }
       final now = DateTime.now().toUtc().toIso8601String();
       await s.db.setLocalSetting('sync.last', now);
-      state = SyncState(SyncPhase.idle, lastSync: now, email: email, server: server);
+      final (:pending, :kept) = await _counts();
+      state = SyncState(
+        SyncPhase.idle,
+        lastSync: now,
+        email: email,
+        server: server,
+        pending: pending,
+        kept: kept,
+      );
       if (pulled > 0) ref.read(revisionProvider.notifier).bump();
     } catch (e) {
+      final (:pending, :kept) = await _counts();
       state = SyncState(
         SyncPhase.failed,
         lastSync: last,
         error: describeError(e),
         email: email,
         server: server,
+        pending: pending,
+        kept: kept,
       );
     }
     if (_again) {
       _again = false;
       await run();
     }
+  }
+
+  /// Waiting changes and kept clashes, over every database this app syncs.
+  Future<({int pending, int kept})> _counts() async {
+    var pending = 0, kept = 0;
+    for (final store in ref.read(syncStoresProvider)) {
+      pending += (await store.db.customSelect('SELECT COUNT(*) AS n FROM outbox').getSingle()).read<int>('n');
+      kept += await KeptEdit.count(store.db);
+    }
+    return (pending: pending, kept: kept);
+  }
+
+  /// Every kept clash with the database (store) it belongs to, newest first.
+  Future<List<(Store, KeptEdit)>> keptEdits() async => [
+    for (final store in ref.read(syncStoresProvider))
+      for (final e in await KeptEdit.all(store.db)) (store, e),
+  ]..sort((a, b) => b.$2.at.compareTo(a.$2.at));
+
+  /// After restoring or dismissing a kept edit.
+  Future<void> refreshCounts() async {
+    final (:pending, :kept) = await _counts();
+    state = SyncState(
+      state.phase,
+      lastSync: state.lastSync,
+      error: state.error,
+      email: state.email,
+      server: state.server,
+      pending: pending,
+      kept: kept,
+    );
+  }
+
+  /// Follows the account to its new server address, then syncs there.
+  Future<void> moveServer(String server) async {
+    await ref.read(coreSessionProvider).account.moveServer(server, stores: ref.read(syncStoresProvider));
+    await run();
   }
 
   Future<void> signOut() async {

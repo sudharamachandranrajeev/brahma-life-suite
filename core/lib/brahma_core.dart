@@ -38,6 +38,7 @@ export 'src/sentinel/threats.dart';
 export 'src/sync/account_api.dart';
 export 'src/sync/account_service.dart';
 export 'src/sync/hlc.dart';
+export 'src/sync/kept_edits.dart';
 export 'src/sync/pairing.dart';
 export 'src/sync/pocketbase_remote.dart';
 export 'src/sync/server_check.dart';

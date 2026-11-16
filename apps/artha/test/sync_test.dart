@@ -173,6 +173,53 @@ void main() {
       expect(await name(b), 'New name');
     });
 
+    test('an edit that loses a clash is kept, on either side, until restored or let go', () async {
+      final id = await a.ledger.saveAccount(name: 'Savings', subtype: 'savings', commodityId: 'GBP');
+      await a.engine.run();
+      await b.engine.run();
+      Future<String> name(Device d) async =>
+          (await (d.db.select(d.db.accounts)..where((x) => x.id.equals(id))).getSingle()).name;
+
+      // b's newer edit reaches the server first: a meets it with its own
+      // older edit still waiting, and keeps that.
+      await a.ledger.saveAccount(id: id, name: 'Older edit', subtype: 'savings', commodityId: 'GBP');
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await b.ledger.saveAccount(id: id, name: 'Newer edit', subtype: 'savings', commodityId: 'GBP');
+      await b.engine.run();
+      await a.engine.run();
+      expect(await name(a), 'Newer edit');
+      var kept = await KeptEdit.all(a.db);
+      expect(kept.map((e) => (e.table, e.id, e.row['name'])), [('accounts', id, 'Older edit')]);
+      expect(kept.single.preview, contains('Older edit'));
+      expect(await KeptEdit.count(b.db), 0);
+
+      // Restoring makes it a new edit that wins everywhere.
+      await kept.single.restore(a.ledger.store);
+      expect(await KeptEdit.count(a.db), 0);
+      await a.engine.run();
+      await b.engine.run();
+      expect(await name(a), 'Older edit');
+      expect(await name(b), 'Older edit');
+      expect(await KeptEdit.count(b.db), 0, reason: 'b had nothing waiting: no clash');
+
+      // The other order: the older edit arrives at a device whose newer
+      // edit is still waiting. The newer stays; the older is kept there.
+      await a.ledger.saveAccount(id: id, name: 'A again', subtype: 'savings', commodityId: 'GBP');
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await b.ledger.saveAccount(id: id, name: 'B again', subtype: 'savings', commodityId: 'GBP');
+      await a.engine.run();
+      await b.engine.run();
+      await a.engine.run();
+      expect(await name(a), 'B again');
+      expect(await name(b), 'B again');
+      kept = await KeptEdit.all(b.db);
+      expect(kept.map((e) => e.row['name']), ['A again']);
+      expect(await KeptEdit.count(a.db), 0);
+      await kept.single.dismiss(b.db);
+      expect(await KeptEdit.count(b.db), 0);
+      expect(await name(b), 'B again');
+    });
+
     test('deletions sync as tombstones, postings follow their entry', () async {
       final bank = await a.ledger.saveAccount(name: 'Current', subtype: 'current', commodityId: 'GBP');
       final e = await a.ledger.saveEntry(

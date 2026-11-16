@@ -261,6 +261,8 @@ class SyncCard extends ConsumerWidget {
                     [
                       if (sync.error != null) sync.error!,
                       if (sync.lastSync != null) 'Last success ${_when(sync.lastSync!)}',
+                      if (sync.pending > 0)
+                        '${sync.pending} change${sync.pending == 1 ? '' : 's'} waiting to send',
                     ].join('\n'),
                   ),
                   trailing: OutlinedButton(
@@ -270,11 +272,23 @@ class SyncCard extends ConsumerWidget {
                     child: const Text('Sync now'),
                   ),
                 ),
+                if (sync.kept > 0)
+                  ListTile(
+                    leading: Icon(Status.warning.icon, color: Status.warning.color),
+                    title: Text('${sync.kept} edit${sync.kept == 1 ? '' : 's'} clashed with another device'),
+                    subtitle: const Text('The newer change is in use. The other one is kept here.'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => showKeptEdits(context, ref),
+                  ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: Wrap(
                     spacing: 8,
                     children: [
+                      TextButton(
+                        onPressed: () => showMoveServer(context, ref),
+                        child: const Text('Change server address'),
+                      ),
                       TextButton(
                         onPressed: () => showChangePassword(context, ref),
                         child: const Text('Change password'),

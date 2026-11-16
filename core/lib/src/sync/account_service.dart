@@ -255,6 +255,41 @@ class AccountService {
     return SyncEngine(store, api.remote(ownerId), dek, ownerId);
   }
 
+  /// Follows the account to a server that moved (Adisthanam's move-out, then
+  /// an install elsewhere), staying signed in. The new server must hold this
+  /// same account, not just the same e-mail, and must not have lost changes
+  /// any of [stores] already sent, so a wrong or stale address changes
+  /// nothing.
+  Future<void> moveServer(String server, {List<Store> stores = const []}) async {
+    final s = await vault.session();
+    if (s == null || await vault.dataKey() == null) throw SyncException('Not signed in');
+    final api = await AccountApi.connect(server);
+    if ('${api.server}' == s['server']) throw SyncException('This device already uses that server');
+    final String ownerId;
+    try {
+      ownerId = await api.login(s['email']! as String, s['secret']! as String);
+    } on SyncException {
+      throw SyncException(
+        "That server doesn't know your account. Check the address, or move the server again",
+      );
+    }
+    if (ownerId != s['userId'] || await api.vault(ownerId) == null) {
+      throw SyncException('That server has a different account with your e-mail, not the one that moved');
+    }
+    final remote = api.remote(ownerId);
+    for (final store in stores) {
+      final sent = int.parse(await store.db.localSetting('sync.sent') ?? '0');
+      if (await remote.lastSeq(store.deviceId) < sent) {
+        throw SyncException(
+          'That server is missing changes this device already sent: it may have come from an older '
+          'backup. Move it again with move-out, so nothing is lost',
+        );
+      }
+    }
+    await vault.setSession({...s, 'server': '${api.server}'});
+    _api = api;
+  }
+
   Future<void> signOut() async {
     _api = null;
     await vault.signOut();

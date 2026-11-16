@@ -6,6 +6,7 @@ import '../security/crypto.dart' show minPasswordLength;
 import '../sync/account_service.dart';
 import '../identity.dart';
 import '../sync/pairing.dart';
+import '../sync/server_check.dart';
 import '../ui/widgets.dart';
 import 'providers.dart';
 
@@ -73,6 +74,9 @@ class _SyncDialogState extends ConsumerState<_SyncDialog> {
           case PairingLink():
             _server.clear();
             _error = 'That is a link to join another device. Close this and choose Join from another device.';
+          case MovedLink(:final server):
+            _server.text = '$server';
+            _error = null;
         }
       } catch (e) {
         _error = describeError(e);
@@ -481,4 +485,117 @@ Future<void> showChangePassword(BuildContext context, WidgetRef ref) async {
       context.mounted) {
     showMessage(context, 'Password changed.');
   }
+}
+
+/// The server moved to another computer: point this device at its new
+/// address and stay signed in. [server] comes from a `brahma://moved` link.
+Future<void> showMoveServer(BuildContext context, WidgetRef ref, {String? server}) async {
+  final address = TextEditingController(text: server ?? '');
+  final form = GlobalKey<FormState>();
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Change server address'),
+      content: SizedBox(
+        width: 400,
+        child: Form(
+          key: form,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Use this when your sync server moved to another computer. You stay signed in, and '
+                'nothing is sent again. The app first checks the new server holds your account.',
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: address,
+                autofocus: server == null,
+                decoration: const InputDecoration(labelText: 'New server address'),
+                validator: (v) => (v ?? '').trim().isEmpty ? 'Enter the new address' : null,
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+        FilledButton(
+          onPressed: () {
+            if (form.currentState!.validate()) Navigator.pop(context, true);
+          },
+          child: const Text('Check and switch'),
+        ),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return;
+  final url = completeServerAddress(address.text.trim());
+  if (await guarded(context, () => ref.read(syncProvider.notifier).moveServer(url)) && context.mounted) {
+    showMessage(context, 'This device now syncs with $url.');
+  }
+}
+
+/// Edits that clashed with another device's: the newest won, the other
+/// version is kept here until it is brought back or let go.
+Future<void> showKeptEdits(BuildContext context, WidgetRef ref) async {
+  final sync = ref.read(syncProvider.notifier);
+  var edits = await sync.keptEdits();
+  if (!context.mounted) return;
+  await showDialog<void>(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setState) {
+        Future<void> act(Future<void> Function() f) async {
+          await guarded(context, f);
+          await sync.refreshCounts();
+          ref.changed();
+          final fresh = await sync.keptEdits();
+          if (context.mounted) setState(() => edits = fresh);
+        }
+
+        return AlertDialog(
+          title: const Text('Edits that clashed'),
+          content: SizedBox(
+            width: 480,
+            child: edits.isEmpty
+                ? const Text('Nothing left to look at.')
+                : ListView(
+                    shrinkWrap: true,
+                    children: [
+                      const Text(
+                        'The same item was changed on two devices before they synced. The newer change '
+                        'is in use; the other one is kept here. Bring it back to use it instead.',
+                      ),
+                      const SizedBox(height: 8),
+                      for (final (store, e) in edits)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(e.preview.isEmpty ? 'An item in ${e.what}' : e.preview),
+                          subtitle: Text(
+                            '${e.what}, ${DateTime.tryParse(e.at)?.toLocal().toString().substring(0, 16) ?? e.at}',
+                          ),
+                          trailing: Wrap(
+                            spacing: 4,
+                            children: [
+                              TextButton(
+                                onPressed: () => act(() => e.dismiss(store.db)),
+                                child: const Text('Let go'),
+                              ),
+                              FilledButton.tonal(
+                                onPressed: () => act(() => e.restore(store)),
+                                child: const Text('Bring back'),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+        );
+      },
+    ),
+  );
 }
