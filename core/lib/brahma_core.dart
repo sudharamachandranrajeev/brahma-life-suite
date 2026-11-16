@@ -22,6 +22,7 @@ export 'src/help/ask_ai.dart';
 export 'src/help/ask_ai_ui.dart';
 export 'src/help/help_search.dart';
 export 'src/help/report.dart';
+export 'src/db/bridges.dart';
 export 'src/db/store.dart';
 export 'src/db/synced_database.dart';
 export 'src/identity.dart';
