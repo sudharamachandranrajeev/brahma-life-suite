@@ -303,7 +303,8 @@ A `v*` tag builds, smoke-tests and publishes the Android, Windows and Linux buil
 
 ## License
 
-No licence has been chosen yet; all rights reserved.
+[Apache License 2.0](LICENSE). The apps under `apps/` come from their own repositories and follow
+those repositories' licences ([NOTICE](NOTICE)).
 
 ---
 
