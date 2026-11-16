@@ -20,6 +20,8 @@ part 'database.g.dart';
     LearnUnlocks,
     LearnCards,
     LearnReviews,
+    BridgeStudyPlans,
+    BridgeStudyProgress,
     Prefs,
     Outbox,
     SyncCursors,
@@ -45,11 +47,13 @@ class AppDatabase extends _$AppDatabase with SyncedDatabase {
     'learn_unlocks',
     'learn_cards',
     'learn_reviews',
+    'bridge_study_plans',
+    'bridge_study_progress',
     'prefs',
   ];
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -66,6 +70,14 @@ class AppDatabase extends _$AppDatabase with SyncedDatabase {
         for (final sql in _indexes.skip(3)) {
           await customStatement(sql);
         }
+      } else if (from < 3) {
+        // Version 2 cards predate media; a table made above already has them.
+        await m.addColumn(learnCards, learnCards.image);
+        await m.addColumn(learnCards, learnCards.audio);
+      }
+      if (from < 4) {
+        await m.createTable(bridgeStudyPlans);
+        await m.createTable(bridgeStudyProgress);
       }
     },
   );

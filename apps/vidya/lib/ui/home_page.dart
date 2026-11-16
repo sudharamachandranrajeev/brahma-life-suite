@@ -6,6 +6,7 @@ import '../app/providers.dart';
 import '../db/database.dart';
 import '../domain/achievements.dart';
 import '../domain/stats.dart';
+import '../domain/udyoga_link.dart';
 import 'charts.dart';
 import 'common.dart';
 import 'course_page.dart';
@@ -62,6 +63,7 @@ class _Body extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = Theme.of(context).textTheme;
+    final streaks = ref.watch(showStreaksProvider).value ?? false;
     final unlocks = [...(ref.watch(unlocksProvider).value ?? const <Unlock>[])]
       ..sort((a, b) => b.day.compareTo(a.day));
     final byKey = {for (final a in achievements) a.key: a};
@@ -89,7 +91,7 @@ class _Body extends ConsumerWidget {
                         Text('${_greeting()}.', style: t.headlineMedium),
                         const SizedBox(height: 4),
                         Text(
-                          s.streak == 0
+                          !streaks || s.streak == 0
                               ? 'One small step is enough to begin.'
                               : 'Unhurried, and unbroken for ${s.streak} ${s.streak == 1 ? 'day' : 'days'}.',
                           style: t.bodyLarge?.copyWith(color: muted(context)),
@@ -98,7 +100,11 @@ class _Body extends ConsumerWidget {
                     ),
                   ),
                 ),
-                FadeIn(delay: const Duration(milliseconds: 60), child: _LevelCard(s)),
+                const _OfferedPlans(),
+                FadeIn(
+                  delay: const Duration(milliseconds: 60),
+                  child: _LevelCard(s, streaks: streaks),
+                ),
                 const SizedBox(height: 16),
                 FadeIn(delay: const Duration(milliseconds: 100), child: _Quests(s)),
                 const SizedBox(height: 16),
@@ -110,6 +116,7 @@ class _Body extends ConsumerWidget {
                   ),
                   child: BarChart(values: week, labels: labels, unit: ' min', height: 90),
                 ),
+                if (s.skills.any((k) => k.category == interviewCategory)) _InterviewReadiness(s),
                 if (next.isNotEmpty)
                   SectionCard(
                     title: 'Up next',
@@ -186,15 +193,98 @@ class _Body extends ConsumerWidget {
   ].take(4).toList();
 }
 
+/// Plans another app sent through sync, re-read after every write and
+/// every sync that brings changes.
+final _offeredProvider = FutureProvider<List<OfferedPlan>>((ref) {
+  ref.watch(revisionProvider);
+  return ref.watch(sessionProvider).book.offeredPlans();
+});
+
+/// A study plan from Udyoga, waiting to be added.
+class _OfferedPlans extends ConsumerStatefulWidget {
+  const _OfferedPlans();
+
+  @override
+  ConsumerState<_OfferedPlans> createState() => _OfferedPlansState();
+}
+
+class _OfferedPlansState extends ConsumerState<_OfferedPlans> {
+  /// Put off until Vidya opens again.
+  final _later = <String>{};
+
+  @override
+  Widget build(BuildContext context) {
+    final offers = [
+      for (final o in ref.watch(_offeredProvider).value ?? const <OfferedPlan>[])
+        if (!_later.contains('${o.row.id}|${o.row.updated}')) o,
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final o in offers)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: SectionCard(
+              title: 'A study plan from ${_appName(o.row.source)}',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    '${o.plan.title}: ${o.plan.courses.length} courses, ${o.plan.cards.length} review cards. '
+                    'Adding it again later updates the same program; nothing is added twice.',
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      FilledButton.icon(
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add to Vidya'),
+                        onPressed: () async {
+                          final r = await ref.mutate(
+                            (s) => s.book.addOfferedPlan(
+                              o,
+                              today: today(),
+                              now: DateTime.now().toUtc().toIso8601String(),
+                            ),
+                          );
+                          if (context.mounted) {
+                            showMessage(
+                              context,
+                              '${o.plan.title}: ${r.courses} courses, ${r.topics} topics, ${r.cards} cards, '
+                              '${r.skills} skills and ${r.notes} notes added.',
+                            );
+                          }
+                        },
+                      ),
+                      TextButton(
+                        onPressed: () => setState(() => _later.add('${o.row.id}|${o.row.updated}')),
+                        child: const Text('Not now'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  static String _appName(String id) =>
+      id.isEmpty ? 'another app' : '${id[0].toUpperCase()}${id.substring(1)}';
+}
+
 class _LevelCard extends StatelessWidget {
-  const _LevelCard(this.s);
+  const _LevelCard(this.s, {required this.streaks});
   final Stats s;
+  final bool streaks;
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
     final stats = [
-      (Icons.local_fire_department_outlined, '${s.streak}', 'day streak'),
+      if (streaks) (Icons.local_fire_department_outlined, '${s.streak}', 'day streak'),
       (Icons.hourglass_bottom, s.hours.toStringAsFixed(s.hours < 10 ? 1 : 0), 'hours'),
       (Icons.check_circle_outline, '${s.topicsDone}', 'topics'),
     ];
@@ -297,4 +387,64 @@ class _Quests extends ConsumerWidget {
       ],
     ),
   );
+}
+
+/// The skill category and deck a plan from Udyoga (the career app) uses.
+const interviewCategory = 'Interview', interviewDeck = 'Interview stories';
+
+/// How ready the learner is to interview: each competency's level against
+/// its target, and their own stories to rehearse on a spaced schedule.
+class _InterviewReadiness extends StatelessWidget {
+  const _InterviewReadiness(this.s);
+  final Stats s;
+
+  @override
+  Widget build(BuildContext context) {
+    final skills = s.skills.where((k) => k.category == interviewCategory).toList()
+      ..sort((a, b) => (a.level / a.target).compareTo(b.level / b.target));
+    final stories = s.cards.where((c) => c.deck == interviewDeck).length;
+    final due = s.dueCards.where((c) => c.deck == interviewDeck).length;
+    final t = Theme.of(context).textTheme;
+    return SectionCard(
+      title: 'Interview readiness',
+      trailing: due == 0
+          ? null
+          : FilledButton.tonalIcon(
+              icon: const Icon(Icons.record_voice_over_outlined),
+              label: Text('Rehearse $due'),
+              onPressed: () => startReview(context, deck: interviewDeck),
+            ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            stories == 0
+                ? 'Rate yourself on each competency on the Skills page as your stories get stronger.'
+                : '$stories of your own stories to rehearse; say each one aloud in about two minutes. Rate '
+                      'yourself on the Skills page as they get stronger.',
+            style: t.bodyMedium?.copyWith(color: muted(context)),
+          ),
+          const SizedBox(height: 8),
+          for (final k in skills.take(6))
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(flex: 3, child: Text(k.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 2,
+                    child: LinearProgressIndicator(
+                      value: k.target == 0 ? 0 : (k.level / k.target).clamp(0, 1),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('${k.level}/${k.target}', style: t.labelMedium),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }

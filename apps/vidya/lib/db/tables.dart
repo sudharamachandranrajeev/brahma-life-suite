@@ -118,6 +118,11 @@ class LearnCards extends Table with SyncedRow {
   TextColumn get deck => text().withDefault(const Constant('General'))();
   TextColumn get courseId => text().nullable()();
 
+  /// Optional media, each a web address or a file path on this device. A
+  /// cloze card hides `{{c1::answer}}` spans in [front] instead of using [back].
+  TextColumn get image => text().withDefault(const Constant(''))();
+  TextColumn get audio => text().withDefault(const Constant(''))();
+
   /// The day it is next shown.
   TextColumn get due => text()();
 
@@ -146,6 +151,14 @@ class LearnReviews extends Table with SyncedRow {
 class LearnUnlocks extends Table with SyncedRow {
   TextColumn get day => text()();
 }
+
+/// Shared with Udyoga (see brahma_core's bridges.dart): Udyoga writes the
+/// study plan, Vidya writes what was finished.
+@DataClassName('StudyPlan')
+class BridgeStudyPlans extends Table with SyncedRow, StudyPlanColumns {}
+
+@DataClassName('StudyProgressRow')
+class BridgeStudyProgress extends Table with SyncedRow, StudyProgressColumns {}
 
 @DataClassName('Pref')
 class Prefs extends Table with SyncedRow, PrefColumns {}

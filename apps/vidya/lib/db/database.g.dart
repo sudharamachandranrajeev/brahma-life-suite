@@ -3920,6 +3920,26 @@ class $LearnCardsTable extends LearnCards with TableInfo<$LearnCardsTable, Flash
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _imageMeta = const VerificationMeta('image');
+  @override
+  late final GeneratedColumn<String> image = GeneratedColumn<String>(
+    'image',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _audioMeta = const VerificationMeta('audio');
+  @override
+  late final GeneratedColumn<String> audio = GeneratedColumn<String>(
+    'audio',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _dueMeta = const VerificationMeta('due');
   @override
   late final GeneratedColumn<String> due = GeneratedColumn<String>(
@@ -3987,6 +4007,8 @@ class $LearnCardsTable extends LearnCards with TableInfo<$LearnCardsTable, Flash
     back,
     deck,
     courseId,
+    image,
+    audio,
     due,
     interval,
     ease,
@@ -4030,6 +4052,12 @@ class $LearnCardsTable extends LearnCards with TableInfo<$LearnCardsTable, Flash
     if (data.containsKey('course_id')) {
       context.handle(_courseIdMeta, courseId.isAcceptableOrUnknown(data['course_id']!, _courseIdMeta));
     }
+    if (data.containsKey('image')) {
+      context.handle(_imageMeta, image.isAcceptableOrUnknown(data['image']!, _imageMeta));
+    }
+    if (data.containsKey('audio')) {
+      context.handle(_audioMeta, audio.isAcceptableOrUnknown(data['audio']!, _audioMeta));
+    }
     if (data.containsKey('due')) {
       context.handle(_dueMeta, due.isAcceptableOrUnknown(data['due']!, _dueMeta));
     } else if (isInserting) {
@@ -4068,6 +4096,8 @@ class $LearnCardsTable extends LearnCards with TableInfo<$LearnCardsTable, Flash
       back: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}back'])!,
       deck: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}deck'])!,
       courseId: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}course_id']),
+      image: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}image'])!,
+      audio: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}audio'])!,
       due: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}due'])!,
       interval: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}interval'])!,
       ease: attachedDatabase.typeMapping.read(DriftSqlType.double, data['${effectivePrefix}ease'])!,
@@ -4092,6 +4122,11 @@ class Flashcard extends DataClass implements Insertable<Flashcard> {
   final String deck;
   final String? courseId;
 
+  /// Optional media, each a web address or a file path on this device. A
+  /// cloze card hides `{{c1::answer}}` spans in [front] instead of using [back].
+  final String image;
+  final String audio;
+
   /// The day it is next shown.
   final String due;
 
@@ -4111,6 +4146,8 @@ class Flashcard extends DataClass implements Insertable<Flashcard> {
     required this.back,
     required this.deck,
     this.courseId,
+    required this.image,
+    required this.audio,
     required this.due,
     required this.interval,
     required this.ease,
@@ -4130,6 +4167,8 @@ class Flashcard extends DataClass implements Insertable<Flashcard> {
     if (!nullToAbsent || courseId != null) {
       map['course_id'] = Variable<String>(courseId);
     }
+    map['image'] = Variable<String>(image);
+    map['audio'] = Variable<String>(audio);
     map['due'] = Variable<String>(due);
     map['interval'] = Variable<int>(interval);
     map['ease'] = Variable<double>(ease);
@@ -4148,6 +4187,8 @@ class Flashcard extends DataClass implements Insertable<Flashcard> {
       back: Value(back),
       deck: Value(deck),
       courseId: courseId == null && nullToAbsent ? const Value.absent() : Value(courseId),
+      image: Value(image),
+      audio: Value(audio),
       due: Value(due),
       interval: Value(interval),
       ease: Value(ease),
@@ -4167,6 +4208,8 @@ class Flashcard extends DataClass implements Insertable<Flashcard> {
       back: serializer.fromJson<String>(json['back']),
       deck: serializer.fromJson<String>(json['deck']),
       courseId: serializer.fromJson<String?>(json['courseId']),
+      image: serializer.fromJson<String>(json['image']),
+      audio: serializer.fromJson<String>(json['audio']),
       due: serializer.fromJson<String>(json['due']),
       interval: serializer.fromJson<int>(json['interval']),
       ease: serializer.fromJson<double>(json['ease']),
@@ -4186,6 +4229,8 @@ class Flashcard extends DataClass implements Insertable<Flashcard> {
       'back': serializer.toJson<String>(back),
       'deck': serializer.toJson<String>(deck),
       'courseId': serializer.toJson<String?>(courseId),
+      'image': serializer.toJson<String>(image),
+      'audio': serializer.toJson<String>(audio),
       'due': serializer.toJson<String>(due),
       'interval': serializer.toJson<int>(interval),
       'ease': serializer.toJson<double>(ease),
@@ -4203,6 +4248,8 @@ class Flashcard extends DataClass implements Insertable<Flashcard> {
     String? back,
     String? deck,
     Value<String?> courseId = const Value.absent(),
+    String? image,
+    String? audio,
     String? due,
     int? interval,
     double? ease,
@@ -4217,6 +4264,8 @@ class Flashcard extends DataClass implements Insertable<Flashcard> {
     back: back ?? this.back,
     deck: deck ?? this.deck,
     courseId: courseId.present ? courseId.value : this.courseId,
+    image: image ?? this.image,
+    audio: audio ?? this.audio,
     due: due ?? this.due,
     interval: interval ?? this.interval,
     ease: ease ?? this.ease,
@@ -4233,6 +4282,8 @@ class Flashcard extends DataClass implements Insertable<Flashcard> {
       back: data.back.present ? data.back.value : this.back,
       deck: data.deck.present ? data.deck.value : this.deck,
       courseId: data.courseId.present ? data.courseId.value : this.courseId,
+      image: data.image.present ? data.image.value : this.image,
+      audio: data.audio.present ? data.audio.value : this.audio,
       due: data.due.present ? data.due.value : this.due,
       interval: data.interval.present ? data.interval.value : this.interval,
       ease: data.ease.present ? data.ease.value : this.ease,
@@ -4252,6 +4303,8 @@ class Flashcard extends DataClass implements Insertable<Flashcard> {
           ..write('back: $back, ')
           ..write('deck: $deck, ')
           ..write('courseId: $courseId, ')
+          ..write('image: $image, ')
+          ..write('audio: $audio, ')
           ..write('due: $due, ')
           ..write('interval: $interval, ')
           ..write('ease: $ease, ')
@@ -4263,8 +4316,23 @@ class Flashcard extends DataClass implements Insertable<Flashcard> {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, hlc, deleted, front, back, deck, courseId, due, interval, ease, reps, lapses, created);
+  int get hashCode => Object.hash(
+    id,
+    hlc,
+    deleted,
+    front,
+    back,
+    deck,
+    courseId,
+    image,
+    audio,
+    due,
+    interval,
+    ease,
+    reps,
+    lapses,
+    created,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -4276,6 +4344,8 @@ class Flashcard extends DataClass implements Insertable<Flashcard> {
           other.back == this.back &&
           other.deck == this.deck &&
           other.courseId == this.courseId &&
+          other.image == this.image &&
+          other.audio == this.audio &&
           other.due == this.due &&
           other.interval == this.interval &&
           other.ease == this.ease &&
@@ -4292,6 +4362,8 @@ class LearnCardsCompanion extends UpdateCompanion<Flashcard> {
   final Value<String> back;
   final Value<String> deck;
   final Value<String?> courseId;
+  final Value<String> image;
+  final Value<String> audio;
   final Value<String> due;
   final Value<int> interval;
   final Value<double> ease;
@@ -4307,6 +4379,8 @@ class LearnCardsCompanion extends UpdateCompanion<Flashcard> {
     this.back = const Value.absent(),
     this.deck = const Value.absent(),
     this.courseId = const Value.absent(),
+    this.image = const Value.absent(),
+    this.audio = const Value.absent(),
     this.due = const Value.absent(),
     this.interval = const Value.absent(),
     this.ease = const Value.absent(),
@@ -4323,6 +4397,8 @@ class LearnCardsCompanion extends UpdateCompanion<Flashcard> {
     required String back,
     this.deck = const Value.absent(),
     this.courseId = const Value.absent(),
+    this.image = const Value.absent(),
+    this.audio = const Value.absent(),
     required String due,
     this.interval = const Value.absent(),
     this.ease = const Value.absent(),
@@ -4343,6 +4419,8 @@ class LearnCardsCompanion extends UpdateCompanion<Flashcard> {
     Expression<String>? back,
     Expression<String>? deck,
     Expression<String>? courseId,
+    Expression<String>? image,
+    Expression<String>? audio,
     Expression<String>? due,
     Expression<int>? interval,
     Expression<double>? ease,
@@ -4359,6 +4437,8 @@ class LearnCardsCompanion extends UpdateCompanion<Flashcard> {
       if (back != null) 'back': back,
       if (deck != null) 'deck': deck,
       if (courseId != null) 'course_id': courseId,
+      if (image != null) 'image': image,
+      if (audio != null) 'audio': audio,
       if (due != null) 'due': due,
       if (interval != null) 'interval': interval,
       if (ease != null) 'ease': ease,
@@ -4377,6 +4457,8 @@ class LearnCardsCompanion extends UpdateCompanion<Flashcard> {
     Value<String>? back,
     Value<String>? deck,
     Value<String?>? courseId,
+    Value<String>? image,
+    Value<String>? audio,
     Value<String>? due,
     Value<int>? interval,
     Value<double>? ease,
@@ -4393,6 +4475,8 @@ class LearnCardsCompanion extends UpdateCompanion<Flashcard> {
       back: back ?? this.back,
       deck: deck ?? this.deck,
       courseId: courseId ?? this.courseId,
+      image: image ?? this.image,
+      audio: audio ?? this.audio,
       due: due ?? this.due,
       interval: interval ?? this.interval,
       ease: ease ?? this.ease,
@@ -4426,6 +4510,12 @@ class LearnCardsCompanion extends UpdateCompanion<Flashcard> {
     }
     if (courseId.present) {
       map['course_id'] = Variable<String>(courseId.value);
+    }
+    if (image.present) {
+      map['image'] = Variable<String>(image.value);
+    }
+    if (audio.present) {
+      map['audio'] = Variable<String>(audio.value);
     }
     if (due.present) {
       map['due'] = Variable<String>(due.value);
@@ -4461,6 +4551,8 @@ class LearnCardsCompanion extends UpdateCompanion<Flashcard> {
           ..write('back: $back, ')
           ..write('deck: $deck, ')
           ..write('courseId: $courseId, ')
+          ..write('image: $image, ')
+          ..write('audio: $audio, ')
           ..write('due: $due, ')
           ..write('interval: $interval, ')
           ..write('ease: $ease, ')
@@ -4812,6 +4904,720 @@ class LearnReviewsCompanion extends UpdateCompanion<CardReview> {
           ..write('cardId: $cardId, ')
           ..write('day: $day, ')
           ..write('grade: $grade, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $BridgeStudyPlansTable extends BridgeStudyPlans with TableInfo<$BridgeStudyPlansTable, StudyPlan> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BridgeStudyPlansTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _hlcMeta = const VerificationMeta('hlc');
+  @override
+  late final GeneratedColumn<String> hlc = GeneratedColumn<String>(
+    'hlc',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _deletedMeta = const VerificationMeta('deleted');
+  @override
+  late final GeneratedColumn<bool> deleted = GeneratedColumn<bool>(
+    'deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('CHECK ("deleted" IN (0, 1))'),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _planMeta = const VerificationMeta('plan');
+  @override
+  late final GeneratedColumn<String> plan = GeneratedColumn<String>(
+    'plan',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedMeta = const VerificationMeta('updated');
+  @override
+  late final GeneratedColumn<String> updated = GeneratedColumn<String>(
+    'updated',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, hlc, deleted, source, plan, updated];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'bridge_study_plans';
+  @override
+  VerificationContext validateIntegrity(Insertable<StudyPlan> instance, {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('hlc')) {
+      context.handle(_hlcMeta, hlc.isAcceptableOrUnknown(data['hlc']!, _hlcMeta));
+    }
+    if (data.containsKey('deleted')) {
+      context.handle(_deletedMeta, deleted.isAcceptableOrUnknown(data['deleted']!, _deletedMeta));
+    }
+    if (data.containsKey('source')) {
+      context.handle(_sourceMeta, source.isAcceptableOrUnknown(data['source']!, _sourceMeta));
+    } else if (isInserting) {
+      context.missing(_sourceMeta);
+    }
+    if (data.containsKey('plan')) {
+      context.handle(_planMeta, plan.isAcceptableOrUnknown(data['plan']!, _planMeta));
+    } else if (isInserting) {
+      context.missing(_planMeta);
+    }
+    if (data.containsKey('updated')) {
+      context.handle(_updatedMeta, updated.isAcceptableOrUnknown(data['updated']!, _updatedMeta));
+    } else if (isInserting) {
+      context.missing(_updatedMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  StudyPlan map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return StudyPlan(
+      id: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      hlc: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}hlc'])!,
+      deleted: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}deleted'])!,
+      source: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}source'])!,
+      plan: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}plan'])!,
+      updated: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}updated'])!,
+    );
+  }
+
+  @override
+  $BridgeStudyPlansTable createAlias(String alias) {
+    return $BridgeStudyPlansTable(attachedDatabase, alias);
+  }
+}
+
+class StudyPlan extends DataClass implements Insertable<StudyPlan> {
+  final String id;
+  final String hlc;
+  final bool deleted;
+
+  /// The app that wrote it, as its identity id (`udyoga`).
+  final String source;
+
+  /// The plan, as "vidya-curriculum" JSON (version 1).
+  final String plan;
+
+  /// When it was last sent (UTC, ISO 8601). Tells the reader it changed.
+  final String updated;
+  const StudyPlan({
+    required this.id,
+    required this.hlc,
+    required this.deleted,
+    required this.source,
+    required this.plan,
+    required this.updated,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['hlc'] = Variable<String>(hlc);
+    map['deleted'] = Variable<bool>(deleted);
+    map['source'] = Variable<String>(source);
+    map['plan'] = Variable<String>(plan);
+    map['updated'] = Variable<String>(updated);
+    return map;
+  }
+
+  BridgeStudyPlansCompanion toCompanion(bool nullToAbsent) {
+    return BridgeStudyPlansCompanion(
+      id: Value(id),
+      hlc: Value(hlc),
+      deleted: Value(deleted),
+      source: Value(source),
+      plan: Value(plan),
+      updated: Value(updated),
+    );
+  }
+
+  factory StudyPlan.fromJson(Map<String, dynamic> json, {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return StudyPlan(
+      id: serializer.fromJson<String>(json['id']),
+      hlc: serializer.fromJson<String>(json['hlc']),
+      deleted: serializer.fromJson<bool>(json['deleted']),
+      source: serializer.fromJson<String>(json['source']),
+      plan: serializer.fromJson<String>(json['plan']),
+      updated: serializer.fromJson<String>(json['updated']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'hlc': serializer.toJson<String>(hlc),
+      'deleted': serializer.toJson<bool>(deleted),
+      'source': serializer.toJson<String>(source),
+      'plan': serializer.toJson<String>(plan),
+      'updated': serializer.toJson<String>(updated),
+    };
+  }
+
+  StudyPlan copyWith({
+    String? id,
+    String? hlc,
+    bool? deleted,
+    String? source,
+    String? plan,
+    String? updated,
+  }) => StudyPlan(
+    id: id ?? this.id,
+    hlc: hlc ?? this.hlc,
+    deleted: deleted ?? this.deleted,
+    source: source ?? this.source,
+    plan: plan ?? this.plan,
+    updated: updated ?? this.updated,
+  );
+  StudyPlan copyWithCompanion(BridgeStudyPlansCompanion data) {
+    return StudyPlan(
+      id: data.id.present ? data.id.value : this.id,
+      hlc: data.hlc.present ? data.hlc.value : this.hlc,
+      deleted: data.deleted.present ? data.deleted.value : this.deleted,
+      source: data.source.present ? data.source.value : this.source,
+      plan: data.plan.present ? data.plan.value : this.plan,
+      updated: data.updated.present ? data.updated.value : this.updated,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('StudyPlan(')
+          ..write('id: $id, ')
+          ..write('hlc: $hlc, ')
+          ..write('deleted: $deleted, ')
+          ..write('source: $source, ')
+          ..write('plan: $plan, ')
+          ..write('updated: $updated')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, hlc, deleted, source, plan, updated);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is StudyPlan &&
+          other.id == this.id &&
+          other.hlc == this.hlc &&
+          other.deleted == this.deleted &&
+          other.source == this.source &&
+          other.plan == this.plan &&
+          other.updated == this.updated);
+}
+
+class BridgeStudyPlansCompanion extends UpdateCompanion<StudyPlan> {
+  final Value<String> id;
+  final Value<String> hlc;
+  final Value<bool> deleted;
+  final Value<String> source;
+  final Value<String> plan;
+  final Value<String> updated;
+  final Value<int> rowid;
+  const BridgeStudyPlansCompanion({
+    this.id = const Value.absent(),
+    this.hlc = const Value.absent(),
+    this.deleted = const Value.absent(),
+    this.source = const Value.absent(),
+    this.plan = const Value.absent(),
+    this.updated = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BridgeStudyPlansCompanion.insert({
+    required String id,
+    this.hlc = const Value.absent(),
+    this.deleted = const Value.absent(),
+    required String source,
+    required String plan,
+    required String updated,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       source = Value(source),
+       plan = Value(plan),
+       updated = Value(updated);
+  static Insertable<StudyPlan> custom({
+    Expression<String>? id,
+    Expression<String>? hlc,
+    Expression<bool>? deleted,
+    Expression<String>? source,
+    Expression<String>? plan,
+    Expression<String>? updated,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (hlc != null) 'hlc': hlc,
+      if (deleted != null) 'deleted': deleted,
+      if (source != null) 'source': source,
+      if (plan != null) 'plan': plan,
+      if (updated != null) 'updated': updated,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BridgeStudyPlansCompanion copyWith({
+    Value<String>? id,
+    Value<String>? hlc,
+    Value<bool>? deleted,
+    Value<String>? source,
+    Value<String>? plan,
+    Value<String>? updated,
+    Value<int>? rowid,
+  }) {
+    return BridgeStudyPlansCompanion(
+      id: id ?? this.id,
+      hlc: hlc ?? this.hlc,
+      deleted: deleted ?? this.deleted,
+      source: source ?? this.source,
+      plan: plan ?? this.plan,
+      updated: updated ?? this.updated,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (hlc.present) {
+      map['hlc'] = Variable<String>(hlc.value);
+    }
+    if (deleted.present) {
+      map['deleted'] = Variable<bool>(deleted.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (plan.present) {
+      map['plan'] = Variable<String>(plan.value);
+    }
+    if (updated.present) {
+      map['updated'] = Variable<String>(updated.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BridgeStudyPlansCompanion(')
+          ..write('id: $id, ')
+          ..write('hlc: $hlc, ')
+          ..write('deleted: $deleted, ')
+          ..write('source: $source, ')
+          ..write('plan: $plan, ')
+          ..write('updated: $updated, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $BridgeStudyProgressTable extends BridgeStudyProgress
+    with TableInfo<$BridgeStudyProgressTable, StudyProgressRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BridgeStudyProgressTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _hlcMeta = const VerificationMeta('hlc');
+  @override
+  late final GeneratedColumn<String> hlc = GeneratedColumn<String>(
+    'hlc',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _deletedMeta = const VerificationMeta('deleted');
+  @override
+  late final GeneratedColumn<bool> deleted = GeneratedColumn<bool>(
+    'deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('CHECK ("deleted" IN (0, 1))'),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _planUpdatedMeta = const VerificationMeta('planUpdated');
+  @override
+  late final GeneratedColumn<String> planUpdated = GeneratedColumn<String>(
+    'plan_updated',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _progressMeta = const VerificationMeta('progress');
+  @override
+  late final GeneratedColumn<String> progress = GeneratedColumn<String>(
+    'progress',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
+  static const VerificationMeta _updatedMeta = const VerificationMeta('updated');
+  @override
+  late final GeneratedColumn<String> updated = GeneratedColumn<String>(
+    'updated',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, hlc, deleted, planUpdated, progress, updated];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'bridge_study_progress';
+  @override
+  VerificationContext validateIntegrity(Insertable<StudyProgressRow> instance, {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('hlc')) {
+      context.handle(_hlcMeta, hlc.isAcceptableOrUnknown(data['hlc']!, _hlcMeta));
+    }
+    if (data.containsKey('deleted')) {
+      context.handle(_deletedMeta, deleted.isAcceptableOrUnknown(data['deleted']!, _deletedMeta));
+    }
+    if (data.containsKey('plan_updated')) {
+      context.handle(
+        _planUpdatedMeta,
+        planUpdated.isAcceptableOrUnknown(data['plan_updated']!, _planUpdatedMeta),
+      );
+    }
+    if (data.containsKey('progress')) {
+      context.handle(_progressMeta, progress.isAcceptableOrUnknown(data['progress']!, _progressMeta));
+    }
+    if (data.containsKey('updated')) {
+      context.handle(_updatedMeta, updated.isAcceptableOrUnknown(data['updated']!, _updatedMeta));
+    } else if (isInserting) {
+      context.missing(_updatedMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  StudyProgressRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return StudyProgressRow(
+      id: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      hlc: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}hlc'])!,
+      deleted: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}deleted'])!,
+      planUpdated: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}plan_updated'],
+      )!,
+      progress: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}progress'])!,
+      updated: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}updated'])!,
+    );
+  }
+
+  @override
+  $BridgeStudyProgressTable createAlias(String alias) {
+    return $BridgeStudyProgressTable(attachedDatabase, alias);
+  }
+}
+
+class StudyProgressRow extends DataClass implements Insertable<StudyProgressRow> {
+  final String id;
+  final String hlc;
+  final bool deleted;
+
+  /// The `updated` of the plan version added to the learning app; empty
+  /// until it is added.
+  final String planUpdated;
+
+  /// [StudyProgress] as JSON.
+  final String progress;
+
+  /// When the progress last changed (UTC, ISO 8601).
+  final String updated;
+  const StudyProgressRow({
+    required this.id,
+    required this.hlc,
+    required this.deleted,
+    required this.planUpdated,
+    required this.progress,
+    required this.updated,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['hlc'] = Variable<String>(hlc);
+    map['deleted'] = Variable<bool>(deleted);
+    map['plan_updated'] = Variable<String>(planUpdated);
+    map['progress'] = Variable<String>(progress);
+    map['updated'] = Variable<String>(updated);
+    return map;
+  }
+
+  BridgeStudyProgressCompanion toCompanion(bool nullToAbsent) {
+    return BridgeStudyProgressCompanion(
+      id: Value(id),
+      hlc: Value(hlc),
+      deleted: Value(deleted),
+      planUpdated: Value(planUpdated),
+      progress: Value(progress),
+      updated: Value(updated),
+    );
+  }
+
+  factory StudyProgressRow.fromJson(Map<String, dynamic> json, {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return StudyProgressRow(
+      id: serializer.fromJson<String>(json['id']),
+      hlc: serializer.fromJson<String>(json['hlc']),
+      deleted: serializer.fromJson<bool>(json['deleted']),
+      planUpdated: serializer.fromJson<String>(json['planUpdated']),
+      progress: serializer.fromJson<String>(json['progress']),
+      updated: serializer.fromJson<String>(json['updated']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'hlc': serializer.toJson<String>(hlc),
+      'deleted': serializer.toJson<bool>(deleted),
+      'planUpdated': serializer.toJson<String>(planUpdated),
+      'progress': serializer.toJson<String>(progress),
+      'updated': serializer.toJson<String>(updated),
+    };
+  }
+
+  StudyProgressRow copyWith({
+    String? id,
+    String? hlc,
+    bool? deleted,
+    String? planUpdated,
+    String? progress,
+    String? updated,
+  }) => StudyProgressRow(
+    id: id ?? this.id,
+    hlc: hlc ?? this.hlc,
+    deleted: deleted ?? this.deleted,
+    planUpdated: planUpdated ?? this.planUpdated,
+    progress: progress ?? this.progress,
+    updated: updated ?? this.updated,
+  );
+  StudyProgressRow copyWithCompanion(BridgeStudyProgressCompanion data) {
+    return StudyProgressRow(
+      id: data.id.present ? data.id.value : this.id,
+      hlc: data.hlc.present ? data.hlc.value : this.hlc,
+      deleted: data.deleted.present ? data.deleted.value : this.deleted,
+      planUpdated: data.planUpdated.present ? data.planUpdated.value : this.planUpdated,
+      progress: data.progress.present ? data.progress.value : this.progress,
+      updated: data.updated.present ? data.updated.value : this.updated,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('StudyProgressRow(')
+          ..write('id: $id, ')
+          ..write('hlc: $hlc, ')
+          ..write('deleted: $deleted, ')
+          ..write('planUpdated: $planUpdated, ')
+          ..write('progress: $progress, ')
+          ..write('updated: $updated')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, hlc, deleted, planUpdated, progress, updated);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is StudyProgressRow &&
+          other.id == this.id &&
+          other.hlc == this.hlc &&
+          other.deleted == this.deleted &&
+          other.planUpdated == this.planUpdated &&
+          other.progress == this.progress &&
+          other.updated == this.updated);
+}
+
+class BridgeStudyProgressCompanion extends UpdateCompanion<StudyProgressRow> {
+  final Value<String> id;
+  final Value<String> hlc;
+  final Value<bool> deleted;
+  final Value<String> planUpdated;
+  final Value<String> progress;
+  final Value<String> updated;
+  final Value<int> rowid;
+  const BridgeStudyProgressCompanion({
+    this.id = const Value.absent(),
+    this.hlc = const Value.absent(),
+    this.deleted = const Value.absent(),
+    this.planUpdated = const Value.absent(),
+    this.progress = const Value.absent(),
+    this.updated = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BridgeStudyProgressCompanion.insert({
+    required String id,
+    this.hlc = const Value.absent(),
+    this.deleted = const Value.absent(),
+    this.planUpdated = const Value.absent(),
+    this.progress = const Value.absent(),
+    required String updated,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       updated = Value(updated);
+  static Insertable<StudyProgressRow> custom({
+    Expression<String>? id,
+    Expression<String>? hlc,
+    Expression<bool>? deleted,
+    Expression<String>? planUpdated,
+    Expression<String>? progress,
+    Expression<String>? updated,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (hlc != null) 'hlc': hlc,
+      if (deleted != null) 'deleted': deleted,
+      if (planUpdated != null) 'plan_updated': planUpdated,
+      if (progress != null) 'progress': progress,
+      if (updated != null) 'updated': updated,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BridgeStudyProgressCompanion copyWith({
+    Value<String>? id,
+    Value<String>? hlc,
+    Value<bool>? deleted,
+    Value<String>? planUpdated,
+    Value<String>? progress,
+    Value<String>? updated,
+    Value<int>? rowid,
+  }) {
+    return BridgeStudyProgressCompanion(
+      id: id ?? this.id,
+      hlc: hlc ?? this.hlc,
+      deleted: deleted ?? this.deleted,
+      planUpdated: planUpdated ?? this.planUpdated,
+      progress: progress ?? this.progress,
+      updated: updated ?? this.updated,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (hlc.present) {
+      map['hlc'] = Variable<String>(hlc.value);
+    }
+    if (deleted.present) {
+      map['deleted'] = Variable<bool>(deleted.value);
+    }
+    if (planUpdated.present) {
+      map['plan_updated'] = Variable<String>(planUpdated.value);
+    }
+    if (progress.present) {
+      map['progress'] = Variable<String>(progress.value);
+    }
+    if (updated.present) {
+      map['updated'] = Variable<String>(updated.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BridgeStudyProgressCompanion(')
+          ..write('id: $id, ')
+          ..write('hlc: $hlc, ')
+          ..write('deleted: $deleted, ')
+          ..write('planUpdated: $planUpdated, ')
+          ..write('progress: $progress, ')
+          ..write('updated: $updated, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5681,6 +6487,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $LearnUnlocksTable learnUnlocks = $LearnUnlocksTable(this);
   late final $LearnCardsTable learnCards = $LearnCardsTable(this);
   late final $LearnReviewsTable learnReviews = $LearnReviewsTable(this);
+  late final $BridgeStudyPlansTable bridgeStudyPlans = $BridgeStudyPlansTable(this);
+  late final $BridgeStudyProgressTable bridgeStudyProgress = $BridgeStudyProgressTable(this);
   late final $PrefsTable prefs = $PrefsTable(this);
   late final $OutboxTable outbox = $OutboxTable(this);
   late final $SyncCursorsTable syncCursors = $SyncCursorsTable(this);
@@ -5701,6 +6509,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     learnUnlocks,
     learnCards,
     learnReviews,
+    bridgeStudyPlans,
+    bridgeStudyProgress,
     prefs,
     outbox,
     syncCursors,
@@ -7614,6 +8424,8 @@ typedef $$LearnCardsTableCreateCompanionBuilder = LearnCardsCompanion Function({
   required String back,
   Value<String> deck,
   Value<String?> courseId,
+  Value<String> image,
+  Value<String> audio,
   required String due,
   Value<int> interval,
   Value<double> ease,
@@ -7630,6 +8442,8 @@ typedef $$LearnCardsTableUpdateCompanionBuilder = LearnCardsCompanion Function({
   Value<String> back,
   Value<String> deck,
   Value<String?> courseId,
+  Value<String> image,
+  Value<String> audio,
   Value<String> due,
   Value<int> interval,
   Value<double> ease,
@@ -7667,6 +8481,12 @@ class $$LearnCardsTableFilterComposer extends Composer<_$AppDatabase, $LearnCard
 
   ColumnFilters<String> get courseId =>
       $composableBuilder(column: $table.courseId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get image =>
+      $composableBuilder(column: $table.image, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get audio =>
+      $composableBuilder(column: $table.audio, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get due =>
       $composableBuilder(column: $table.due, builder: (column) => ColumnFilters(column));
@@ -7716,6 +8536,12 @@ class $$LearnCardsTableOrderingComposer extends Composer<_$AppDatabase, $LearnCa
   ColumnOrderings<String> get courseId =>
       $composableBuilder(column: $table.courseId, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get image =>
+      $composableBuilder(column: $table.image, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get audio =>
+      $composableBuilder(column: $table.audio, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get due =>
       $composableBuilder(column: $table.due, builder: (column) => ColumnOrderings(column));
 
@@ -7758,6 +8584,10 @@ class $$LearnCardsTableAnnotationComposer extends Composer<_$AppDatabase, $Learn
 
   GeneratedColumn<String> get courseId =>
       $composableBuilder(column: $table.courseId, builder: (column) => column);
+
+  GeneratedColumn<String> get image => $composableBuilder(column: $table.image, builder: (column) => column);
+
+  GeneratedColumn<String> get audio => $composableBuilder(column: $table.audio, builder: (column) => column);
 
   GeneratedColumn<String> get due => $composableBuilder(column: $table.due, builder: (column) => column);
 
@@ -7806,6 +8636,8 @@ class $$LearnCardsTableTableManager
                 Value<String> back = const Value.absent(),
                 Value<String> deck = const Value.absent(),
                 Value<String?> courseId = const Value.absent(),
+                Value<String> image = const Value.absent(),
+                Value<String> audio = const Value.absent(),
                 Value<String> due = const Value.absent(),
                 Value<int> interval = const Value.absent(),
                 Value<double> ease = const Value.absent(),
@@ -7821,6 +8653,8 @@ class $$LearnCardsTableTableManager
                 back: back,
                 deck: deck,
                 courseId: courseId,
+                image: image,
+                audio: audio,
                 due: due,
                 interval: interval,
                 ease: ease,
@@ -7838,6 +8672,8 @@ class $$LearnCardsTableTableManager
                 required String back,
                 Value<String> deck = const Value.absent(),
                 Value<String?> courseId = const Value.absent(),
+                Value<String> image = const Value.absent(),
+                Value<String> audio = const Value.absent(),
                 required String due,
                 Value<int> interval = const Value.absent(),
                 Value<double> ease = const Value.absent(),
@@ -7853,6 +8689,8 @@ class $$LearnCardsTableTableManager
                 back: back,
                 deck: deck,
                 courseId: courseId,
+                image: image,
+                audio: audio,
                 due: due,
                 interval: interval,
                 ease: ease,
@@ -8068,6 +8906,376 @@ typedef $$LearnReviewsTableProcessedTableManager =
       $$LearnReviewsTableUpdateCompanionBuilder,
       (CardReview, BaseReferences<_$AppDatabase, $LearnReviewsTable, CardReview>),
       CardReview,
+      PrefetchHooks Function()
+    >;
+typedef $$BridgeStudyPlansTableCreateCompanionBuilder = BridgeStudyPlansCompanion Function({
+  required String id,
+  Value<String> hlc,
+  Value<bool> deleted,
+  required String source,
+  required String plan,
+  required String updated,
+  Value<int> rowid,
+});
+typedef $$BridgeStudyPlansTableUpdateCompanionBuilder = BridgeStudyPlansCompanion Function({
+  Value<String> id,
+  Value<String> hlc,
+  Value<bool> deleted,
+  Value<String> source,
+  Value<String> plan,
+  Value<String> updated,
+  Value<int> rowid,
+});
+
+class $$BridgeStudyPlansTableFilterComposer extends Composer<_$AppDatabase, $BridgeStudyPlansTable> {
+  $$BridgeStudyPlansTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get hlc =>
+      $composableBuilder(column: $table.hlc, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get deleted =>
+      $composableBuilder(column: $table.deleted, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get plan =>
+      $composableBuilder(column: $table.plan, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get updated =>
+      $composableBuilder(column: $table.updated, builder: (column) => ColumnFilters(column));
+}
+
+class $$BridgeStudyPlansTableOrderingComposer extends Composer<_$AppDatabase, $BridgeStudyPlansTable> {
+  $$BridgeStudyPlansTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get hlc =>
+      $composableBuilder(column: $table.hlc, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get deleted =>
+      $composableBuilder(column: $table.deleted, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get plan =>
+      $composableBuilder(column: $table.plan, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get updated =>
+      $composableBuilder(column: $table.updated, builder: (column) => ColumnOrderings(column));
+}
+
+class $$BridgeStudyPlansTableAnnotationComposer extends Composer<_$AppDatabase, $BridgeStudyPlansTable> {
+  $$BridgeStudyPlansTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id => $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get hlc => $composableBuilder(column: $table.hlc, builder: (column) => column);
+
+  GeneratedColumn<bool> get deleted =>
+      $composableBuilder(column: $table.deleted, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get plan => $composableBuilder(column: $table.plan, builder: (column) => column);
+
+  GeneratedColumn<String> get updated =>
+      $composableBuilder(column: $table.updated, builder: (column) => column);
+}
+
+class $$BridgeStudyPlansTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BridgeStudyPlansTable,
+          StudyPlan,
+          $$BridgeStudyPlansTableFilterComposer,
+          $$BridgeStudyPlansTableOrderingComposer,
+          $$BridgeStudyPlansTableAnnotationComposer,
+          $$BridgeStudyPlansTableCreateCompanionBuilder,
+          $$BridgeStudyPlansTableUpdateCompanionBuilder,
+          (StudyPlan, BaseReferences<_$AppDatabase, $BridgeStudyPlansTable, StudyPlan>),
+          StudyPlan,
+          PrefetchHooks Function()
+        > {
+  $$BridgeStudyPlansTableTableManager(_$AppDatabase db, $BridgeStudyPlansTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () => $$BridgeStudyPlansTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () => $$BridgeStudyPlansTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BridgeStudyPlansTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> hlc = const Value.absent(),
+                Value<bool> deleted = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<String> plan = const Value.absent(),
+                Value<String> updated = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BridgeStudyPlansCompanion(
+                id: id,
+                hlc: hlc,
+                deleted: deleted,
+                source: source,
+                plan: plan,
+                updated: updated,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String> hlc = const Value.absent(),
+                Value<bool> deleted = const Value.absent(),
+                required String source,
+                required String plan,
+                required String updated,
+                Value<int> rowid = const Value.absent(),
+              }) => BridgeStudyPlansCompanion.insert(
+                id: id,
+                hlc: hlc,
+                deleted: deleted,
+                source: source,
+                plan: plan,
+                updated: updated,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$BridgeStudyPlansTable, StudyPlan>(table),
+                  BaseReferences<_$AppDatabase, $BridgeStudyPlansTable, StudyPlan>(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$BridgeStudyPlansTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BridgeStudyPlansTable,
+      StudyPlan,
+      $$BridgeStudyPlansTableFilterComposer,
+      $$BridgeStudyPlansTableOrderingComposer,
+      $$BridgeStudyPlansTableAnnotationComposer,
+      $$BridgeStudyPlansTableCreateCompanionBuilder,
+      $$BridgeStudyPlansTableUpdateCompanionBuilder,
+      (StudyPlan, BaseReferences<_$AppDatabase, $BridgeStudyPlansTable, StudyPlan>),
+      StudyPlan,
+      PrefetchHooks Function()
+    >;
+typedef $$BridgeStudyProgressTableCreateCompanionBuilder = BridgeStudyProgressCompanion Function({
+  required String id,
+  Value<String> hlc,
+  Value<bool> deleted,
+  Value<String> planUpdated,
+  Value<String> progress,
+  required String updated,
+  Value<int> rowid,
+});
+typedef $$BridgeStudyProgressTableUpdateCompanionBuilder = BridgeStudyProgressCompanion Function({
+  Value<String> id,
+  Value<String> hlc,
+  Value<bool> deleted,
+  Value<String> planUpdated,
+  Value<String> progress,
+  Value<String> updated,
+  Value<int> rowid,
+});
+
+class $$BridgeStudyProgressTableFilterComposer extends Composer<_$AppDatabase, $BridgeStudyProgressTable> {
+  $$BridgeStudyProgressTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get hlc =>
+      $composableBuilder(column: $table.hlc, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get deleted =>
+      $composableBuilder(column: $table.deleted, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get planUpdated =>
+      $composableBuilder(column: $table.planUpdated, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get progress =>
+      $composableBuilder(column: $table.progress, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get updated =>
+      $composableBuilder(column: $table.updated, builder: (column) => ColumnFilters(column));
+}
+
+class $$BridgeStudyProgressTableOrderingComposer extends Composer<_$AppDatabase, $BridgeStudyProgressTable> {
+  $$BridgeStudyProgressTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get hlc =>
+      $composableBuilder(column: $table.hlc, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get deleted =>
+      $composableBuilder(column: $table.deleted, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get planUpdated =>
+      $composableBuilder(column: $table.planUpdated, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get progress =>
+      $composableBuilder(column: $table.progress, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get updated =>
+      $composableBuilder(column: $table.updated, builder: (column) => ColumnOrderings(column));
+}
+
+class $$BridgeStudyProgressTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BridgeStudyProgressTable> {
+  $$BridgeStudyProgressTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id => $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get hlc => $composableBuilder(column: $table.hlc, builder: (column) => column);
+
+  GeneratedColumn<bool> get deleted =>
+      $composableBuilder(column: $table.deleted, builder: (column) => column);
+
+  GeneratedColumn<String> get planUpdated =>
+      $composableBuilder(column: $table.planUpdated, builder: (column) => column);
+
+  GeneratedColumn<String> get progress =>
+      $composableBuilder(column: $table.progress, builder: (column) => column);
+
+  GeneratedColumn<String> get updated =>
+      $composableBuilder(column: $table.updated, builder: (column) => column);
+}
+
+class $$BridgeStudyProgressTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BridgeStudyProgressTable,
+          StudyProgressRow,
+          $$BridgeStudyProgressTableFilterComposer,
+          $$BridgeStudyProgressTableOrderingComposer,
+          $$BridgeStudyProgressTableAnnotationComposer,
+          $$BridgeStudyProgressTableCreateCompanionBuilder,
+          $$BridgeStudyProgressTableUpdateCompanionBuilder,
+          (StudyProgressRow, BaseReferences<_$AppDatabase, $BridgeStudyProgressTable, StudyProgressRow>),
+          StudyProgressRow,
+          PrefetchHooks Function()
+        > {
+  $$BridgeStudyProgressTableTableManager(_$AppDatabase db, $BridgeStudyProgressTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () => $$BridgeStudyProgressTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () => $$BridgeStudyProgressTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BridgeStudyProgressTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> hlc = const Value.absent(),
+                Value<bool> deleted = const Value.absent(),
+                Value<String> planUpdated = const Value.absent(),
+                Value<String> progress = const Value.absent(),
+                Value<String> updated = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BridgeStudyProgressCompanion(
+                id: id,
+                hlc: hlc,
+                deleted: deleted,
+                planUpdated: planUpdated,
+                progress: progress,
+                updated: updated,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String> hlc = const Value.absent(),
+                Value<bool> deleted = const Value.absent(),
+                Value<String> planUpdated = const Value.absent(),
+                Value<String> progress = const Value.absent(),
+                required String updated,
+                Value<int> rowid = const Value.absent(),
+              }) => BridgeStudyProgressCompanion.insert(
+                id: id,
+                hlc: hlc,
+                deleted: deleted,
+                planUpdated: planUpdated,
+                progress: progress,
+                updated: updated,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$BridgeStudyProgressTable, StudyProgressRow>(table),
+                  BaseReferences<_$AppDatabase, $BridgeStudyProgressTable, StudyProgressRow>(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$BridgeStudyProgressTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BridgeStudyProgressTable,
+      StudyProgressRow,
+      $$BridgeStudyProgressTableFilterComposer,
+      $$BridgeStudyProgressTableOrderingComposer,
+      $$BridgeStudyProgressTableAnnotationComposer,
+      $$BridgeStudyProgressTableCreateCompanionBuilder,
+      $$BridgeStudyProgressTableUpdateCompanionBuilder,
+      (StudyProgressRow, BaseReferences<_$AppDatabase, $BridgeStudyProgressTable, StudyProgressRow>),
+      StudyProgressRow,
       PrefetchHooks Function()
     >;
 typedef $$PrefsTableCreateCompanionBuilder = PrefsCompanion Function({
@@ -8584,6 +9792,10 @@ class $AppDatabaseManager {
   $$LearnUnlocksTableTableManager get learnUnlocks => $$LearnUnlocksTableTableManager(_db, _db.learnUnlocks);
   $$LearnCardsTableTableManager get learnCards => $$LearnCardsTableTableManager(_db, _db.learnCards);
   $$LearnReviewsTableTableManager get learnReviews => $$LearnReviewsTableTableManager(_db, _db.learnReviews);
+  $$BridgeStudyPlansTableTableManager get bridgeStudyPlans =>
+      $$BridgeStudyPlansTableTableManager(_db, _db.bridgeStudyPlans);
+  $$BridgeStudyProgressTableTableManager get bridgeStudyProgress =>
+      $$BridgeStudyProgressTableTableManager(_db, _db.bridgeStudyProgress);
   $$PrefsTableTableManager get prefs => $$PrefsTableTableManager(_db, _db.prefs);
   $$OutboxTableTableManager get outbox => $$OutboxTableTableManager(_db, _db.outbox);
   $$SyncCursorsTableTableManager get syncCursors => $$SyncCursorsTableTableManager(_db, _db.syncCursors);
