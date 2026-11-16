@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vidya/app/app.dart';
 import 'package:vidya/app/modules.dart';
 import 'package:vidya/app/providers.dart';
+import 'package:vidya/db/database.dart';
 import 'package:vidya/domain/curriculum.dart';
 
 import 'app_harness.dart';
@@ -158,6 +159,30 @@ void main() {
     expect(find.textContaining('Achievement earned: First recall'), findsOneWidget);
     await app.tapText('Done');
     expect(find.text('Nothing due'), findsOneWidget);
+    await app.close();
+  });
+
+  testWidgets('a study plan Udyoga sent through sync is offered on Home and added in one tap', (
+    tester,
+  ) async {
+    final app = AppHarness(tester)..desktop();
+    await app.open(
+      seed: (book) => book.db
+          .into(book.db.bridgeStudyPlans)
+          .insert(
+            BridgeStudyPlansCompanion.insert(
+              id: 'udyoga.study-plan',
+              source: 'udyoga',
+              plan: File('test/fixtures/udyoga-plan.json').readAsStringSync(),
+              updated: '2026-11-16T09:00:00Z',
+            ),
+          ),
+    );
+    await app.run();
+    expect(find.text('A study plan from Udyoga'), findsOneWidget);
+    await app.tapText('Add to Vidya');
+    expect(find.text('A study plan from Udyoga'), findsNothing);
+    expect(tester.takeException(), isNull);
     await app.close();
   });
 
