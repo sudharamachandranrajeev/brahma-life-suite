@@ -2,6 +2,8 @@
 /// goes out as a Vidya study plan; what they finish in Vidya comes back.
 library;
 
+import 'dart:convert';
+
 import 'package:brahma_core/brahma_core.dart' hide Release, UpdateException, checksumsName, updaterProvider;
 import 'package:drift/drift.dart';
 
@@ -138,8 +140,8 @@ Json vidyaPlan({
           '',
           for (final c in competencyNames.keys) '- ${competencyNames[c]}: ${ready[c]}% ready',
           '',
-          'When you finish something here, export your portfolio from Vidya and import it on Udyoga\'s '
-              'Coach page, so your profile shows it.',
+          'What you finish here reaches Udyoga\'s Coach page by itself when both apps sync with the same '
+              'account. Without sync, copy your portfolio from Vidya and paste it on Udyoga\'s Coach page.',
         ].join('\n'),
         'tags': ['udyoga', 'interview'],
       },
@@ -156,11 +158,17 @@ typedef VidyaDone = ({
   List<String> skills,
 });
 
+/// Vidya's kinds of finished learning that the Growth page keeps, as its kinds.
+const _kinds = {'course': 'course', 'book': 'course', 'certification': 'certification', 'degree': 'degree'};
+
+/// Skills at Vidya's level 3 (Competent) or above go on the profile.
+const _competent = 3;
+
 VidyaDone parseVidyaPortfolio(String markdown) {
   final learning = <({String title, String kind, String provider, String finished})>[];
   final skills = <String>[];
   var section = '';
-  const kinds = {'course': 'course', 'book': 'course', 'certification': 'certification', 'degree': 'degree'};
+  const kinds = _kinds;
   for (final raw in markdown.split('\n')) {
     final line = raw.trim();
     if (line.startsWith('## ')) {
@@ -195,9 +203,74 @@ VidyaDone parseVidyaPortfolio(String markdown) {
   return (learning: learning, skills: skills);
 }
 
+/// The same as [parseVidyaPortfolio], from what Vidya reports through sync.
+VidyaDone vidyaDoneFrom(StudyProgress p) => (
+  learning: [
+    for (final l in p.learning)
+      if (_kinds[l.kind.toLowerCase()] case final kind?)
+        (title: l.title, kind: kind, provider: l.provider, finished: l.finished),
+  ],
+  skills: [
+    for (final k in p.skills)
+      if (k.level >= _competent && k.category.toLowerCase() != 'interview') k.name,
+  ],
+);
+
+/// The one study plan Udyoga sends; sending again replaces it.
+const studyPlanId = 'udyoga.study-plan';
+
+/// The live link through sync: the plan as last sent, whether Vidya has
+/// added it, and what Vidya reports finished.
+typedef VidyaBridge = ({String? sent, bool added, VidyaDone done});
+
 /// The candidate's records as a Vidya plan, and what Vidya finished back
 /// into the profile.
 extension VidyaLink on CareerBook {
+  /// Sends the plan to Vidya through sync (the [bridge_study_plans] table).
+  Future<void> sendToVidya({required String now}) async {
+    final plan = await vidyaPlanNow();
+    await save(
+      db.bridgeStudyPlans,
+      BridgeStudyPlansCompanion.insert(
+        id: studyPlanId,
+        source: 'udyoga',
+        plan: jsonEncode(plan),
+        updated: now,
+      ),
+      studyPlanId,
+    );
+  }
+
+  Future<VidyaBridge> vidyaBridge() async {
+    final plan = await (db.select(
+      db.bridgeStudyPlans,
+    )..where((p) => p.id.equals(studyPlanId) & p.deleted.not())).getSingleOrNull();
+    final progress = await (db.select(
+      db.bridgeStudyProgress,
+    )..where((p) => p.id.equals(studyPlanId) & p.deleted.not())).getSingleOrNull();
+    return (
+      sent: plan?.updated,
+      added: plan != null && progress != null && progress.planUpdated == plan.updated,
+      done: progress == null
+          ? (learning: const <FinishedLearning>[], skills: const <String>[])
+          : vidyaDoneFrom(StudyProgress.parse(progress.progress)),
+    );
+  }
+
+  /// How much of [done] is not on the profile or Growth page yet: what
+  /// [importVidya] would change.
+  Future<({int learning, int skills})> vidyaNew(VidyaDone done) async {
+    final growth = {
+      for (final g in await (db.select(db.careerGrowth)..where((g) => g.deleted.not())).get())
+        if (g.status == 'done') g.title.toLowerCase().trim(),
+    };
+    final have = {for (final s in (await profile()).skills) s.toLowerCase().trim()};
+    return (
+      learning: done.learning.where((l) => !growth.contains(l.title.toLowerCase().trim())).length,
+      skills: done.skills.map((s) => s.toLowerCase().trim()).toSet().difference(have).length,
+    );
+  }
+
   Future<Json> vidyaPlanNow() async => vidyaPlan(
     profile: await profile(),
     jobs: await (db.select(db.jobListings)..where((j) => j.deleted.not())).get(),

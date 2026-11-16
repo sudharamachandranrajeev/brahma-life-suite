@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:brahma_core/brahma_core.dart' hide Release, UpdateException, checksumsName, updaterProvider;
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:udyoga/db/database.dart';
 import 'package:udyoga/domain/book.dart';
 import 'package:udyoga/domain/companion.dart';
 import 'package:udyoga/domain/companion_book.dart';
@@ -115,6 +117,45 @@ void main() {
     });
     expect((await book.profile()).skills, contains('SystmOne'));
     expect(await book.importVidya(done, today: '2026-11-16'), (learning: 0, skills: 0));
+  });
+
+  test('through sync: the plan goes out as one row, Vidya\'s progress comes back to the profile', () async {
+    var link = await book.vidyaBridge();
+    expect((link.sent, link.added), (null, false));
+    expect([...link.done.learning, ...link.done.skills], isEmpty);
+
+    await book.sendToVidya(now: '2026-11-16T09:00:00Z');
+    await book.sendToVidya(now: '2026-11-16T10:00:00Z');
+    final rows = await book.db.select(book.db.bridgeStudyPlans).get();
+    expect(rows.map((r) => (r.id, r.source, r.updated)), [(studyPlanId, 'udyoga', '2026-11-16T10:00:00Z')]);
+    expect(jsonDecode(rows.single.plan), containsPair('format', 'vidya-curriculum'));
+    expect(await book.db.select(book.db.outbox).get(), isNotEmpty, reason: 'it syncs');
+
+    // As Vidya's reply arrives through sync (Vidya's fixture).
+    Future<void> reply(String planUpdated) => book.db
+        .into(book.db.bridgeStudyProgress)
+        .insertOnConflictUpdate(
+          BridgeStudyProgressCompanion.insert(
+            id: studyPlanId,
+            planUpdated: Value(planUpdated),
+            progress: Value(File('test/fixtures/vidya-progress.json').readAsStringSync()),
+            updated: 'T',
+          ),
+        );
+    await reply('2026-11-16T09:00:00Z');
+    link = await book.vidyaBridge();
+    expect(link.added, isFalse, reason: 'Vidya added an older version');
+    await reply('2026-11-16T10:00:00Z');
+    link = await book.vidyaBridge();
+    expect(link.added, isTrue);
+    expect(link.done.learning.map((l) => (l.title, l.kind, l.provider)), [
+      ('Care Certificate', 'certification', 'Skills for Health'),
+    ]);
+    expect(link.done.skills, ['SystmOne'], reason: 'Competent or better only');
+
+    expect(await book.vidyaNew(link.done), (learning: 1, skills: 1));
+    await book.importVidya(link.done, today: '2026-11-16');
+    expect(await book.vidyaNew(link.done), (learning: 0, skills: 0));
   });
 
   test('the plan fixture shared with Vidya is current', () async {

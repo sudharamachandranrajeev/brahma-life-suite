@@ -28,6 +28,8 @@ part 'database.g.dart';
     Conversations,
     Messages,
     CareerPosts,
+    BridgeStudyPlans,
+    BridgeStudyProgress,
     Prefs,
     Outbox,
     SyncCursors,
@@ -61,11 +63,13 @@ class AppDatabase extends _$AppDatabase with SyncedDatabase {
     'career_conversations',
     'career_messages',
     'career_posts',
+    'bridge_study_plans',
+    'bridge_study_progress',
     'prefs',
   ];
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -121,6 +125,10 @@ class AppDatabase extends _$AppDatabase with SyncedDatabase {
         for (final sql in _v5Indexes) {
           await customStatement(sql);
         }
+      }
+      if (from < 6) {
+        await m.createTable(bridgeStudyPlans);
+        await m.createTable(bridgeStudyProgress);
       }
     },
   );

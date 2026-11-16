@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Send to Vidya (Coach page): when Udyoga and Vidya sync with the same account, the study plan goes straight into Vidya, and what you finish there shows on the Coach card with *Add to my profile*. Saving or copying the plan still works without sync.
+- Sync: *Change server address* follows your sync server to another computer without signing in again; edits that clashed with another device's are kept for you to bring back; the Sync card shows changes waiting to send.
+
 ## 0.6.0 (2026-11-15)
 
 - A new look across the app: calmer cards with thin borders, numbers that roll to their value, a glow on the next deadline, quicker page changes, and less motion when your system asks for it. Ctrl+K (or the search button) jumps to any page or action.

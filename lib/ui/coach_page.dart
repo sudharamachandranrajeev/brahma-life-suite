@@ -520,60 +520,120 @@ class _Documents extends ConsumerWidget {
   }
 }
 
+/// The plan as sent, and what Vidya reports, re-read after every write
+/// and every sync that brings changes.
+final _vidyaBridgeProvider = FutureProvider<(VidyaBridge, ({int learning, int skills}))>((ref) async {
+  ref.watch(revisionProvider);
+  final book = ref.watch(sessionProvider).book;
+  final bridge = await book.vidyaBridge();
+  return (bridge, await book.vidyaNew(bridge.done));
+});
+
 /// The link with Vidya: what to learn and rehearse goes out as a study
 /// plan; what was finished there comes back.
 class _VidyaCard extends ConsumerWidget {
   const _VidyaCard();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => SectionCard(
-    title: 'Learn and rehearse in Vidya',
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Text(
-          'A study plan for Vidya from what you still need: a story for each competency, the gaps in your job '
-          'assessments and your planned learning. Your stories become review cards. In Vidya, use Import a '
-          'study plan and open the file or paste it.',
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            FilledButton.tonalIcon(
-              icon: const Icon(Icons.save_alt),
-              label: const Text('Save plan'),
-              onPressed: () async {
-                final plan = await ref.read(sessionProvider).book.vidyaPlanNow();
-                if (!context.mounted) return;
-                await saveBytes(
-                  context,
-                  'udyoga-plan-${today()}.json',
-                  Uint8List.fromList(utf8.encode(const JsonEncoder.withIndent('  ').convert(plan))),
-                  mime: 'application/json',
-                );
-              },
-            ),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.content_copy),
-              label: const Text('Copy plan'),
-              onPressed: () async {
-                final plan = await ref.read(sessionProvider).book.vidyaPlanNow();
-                if (!context.mounted) return;
-                await copyText(context, jsonEncode(plan), what: 'Plan copied. Paste it into Vidya.');
-              },
-            ),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.download_done),
-              label: const Text('What I finished in Vidya'),
-              onPressed: () => _import(context, ref),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final link = ref.watch(_vidyaBridgeProvider).value;
+    final bridge = link?.$1;
+    final fresh = link?.$2;
+    return SectionCard(
+      title: 'Learn and rehearse in Vidya',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'A study plan for Vidya from what you still need: a story for each competency, the gaps in your job '
+            'assessments and your planned learning. Your stories become review cards. When Udyoga and Vidya sync '
+            'with the same account, Send to Vidya puts it there and what you finish comes back here. Without '
+            'sync, save or copy the plan and use Import a study plan in Vidya.',
+          ),
+          if (bridge?.sent case final sent?) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Sent to Vidya ${niceDate(sent.substring(0, 10))}. '
+              '${bridge!.added ? 'Vidya has added it.' : 'Vidya adds it when you open Vidya and accept it.'}',
             ),
           ],
-        ),
-      ],
-    ),
-  );
+          if (fresh != null && fresh.learning + fresh.skills > 0) ...[
+            const SizedBox(height: 8),
+            Text(
+              'From Vidya: ${fresh.learning} finished, ${fresh.skills} new skill${fresh.skills == 1 ? '' : 's'} '
+              'not on your profile yet.',
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                icon: const Icon(Icons.download_done),
+                label: const Text('Add to my profile'),
+                onPressed: () async {
+                  final r = await ref.mutate((s) => s.book.importVidya(bridge!.done, today: today()));
+                  if (context.mounted) {
+                    showMessage(
+                      context,
+                      '${r.learning} finished on Growth, ${r.skills} skills added to your profile.',
+                    );
+                  }
+                },
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.icon(
+                icon: const Icon(Icons.send),
+                label: Text(bridge?.sent == null ? 'Send to Vidya' : 'Send again'),
+                onPressed: () async {
+                  await ref.mutate((s) => s.book.sendToVidya(now: DateTime.now().toUtc().toIso8601String()));
+                  if (!context.mounted) return;
+                  showMessage(
+                    context,
+                    ref.read(syncProvider).phase == SyncPhase.signedOut
+                        ? 'Kept for Vidya. It goes there once both apps sync with your account; until then, save '
+                              'or copy the plan.'
+                        : 'Sent. Vidya offers to add it the next time it opens.',
+                  );
+                },
+              ),
+              FilledButton.tonalIcon(
+                icon: const Icon(Icons.save_alt),
+                label: const Text('Save plan'),
+                onPressed: () async {
+                  final plan = await ref.read(sessionProvider).book.vidyaPlanNow();
+                  if (!context.mounted) return;
+                  await saveBytes(
+                    context,
+                    'udyoga-plan-${today()}.json',
+                    Uint8List.fromList(utf8.encode(const JsonEncoder.withIndent('  ').convert(plan))),
+                    mime: 'application/json',
+                  );
+                },
+              ),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.content_copy),
+                label: const Text('Copy plan'),
+                onPressed: () async {
+                  final plan = await ref.read(sessionProvider).book.vidyaPlanNow();
+                  if (!context.mounted) return;
+                  await copyText(context, jsonEncode(plan), what: 'Plan copied. Paste it into Vidya.');
+                },
+              ),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.content_paste),
+                label: const Text('Paste what I finished'),
+                onPressed: () => _import(context, ref),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _import(BuildContext context, WidgetRef ref) async {
     final text = TextEditingController();
