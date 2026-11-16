@@ -252,6 +252,15 @@ class AccountService {
     if (s == null || dek == null) return null;
     final api = await _signedIn();
     final ownerId = s['userId']! as String;
+    // Each database writes its own change log, and other devices read only
+    // the logs of registered devices. Sign-in registers one; in Brahma Suite
+    // one sign-in serves several apps' databases, so each registers itself
+    // (once per server) before it first syncs.
+    final server = '${api.server}';
+    if (await store.db.localSetting('sync.registered') != server) {
+      await api.addDevice(ownerId, store.deviceId, platform);
+      await store.db.setLocalSetting('sync.registered', server);
+    }
     return SyncEngine(store, api.remote(ownerId), dek, ownerId);
   }
 

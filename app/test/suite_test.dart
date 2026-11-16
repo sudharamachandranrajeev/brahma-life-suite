@@ -105,7 +105,7 @@ void main() {
       expect(find.text(app.tagline), findsOneWidget);
     }
     // Each card shows its app's figures.
-    for (final label in ['open applications', 'viewings booked', 'day streak']) {
+    for (final label in ['open applications', 'viewings booked', 'studied today']) {
       expect(find.text(label), findsOneWidget, reason: label);
     }
 
