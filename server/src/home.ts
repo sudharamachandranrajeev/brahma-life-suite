@@ -29,7 +29,14 @@ const envFile = join(home, "server.env");
 const dbFile = join(home, "brahma.db");
 const backups = join(home, "backups");
 
-type Config = { TOKEN_KEY: string; SETUP_CODE: string; PORT: string; HOST: string; NAME: string };
+type Config = {
+  TOKEN_KEY: string;
+  SETUP_CODE: string;
+  PORT: string;
+  HOST: string;
+  NAME: string;
+  RATE_LIMIT_SCALE?: string;
+};
 
 function readConfig(): Config {
   if (!existsSync(envFile)) fail(`No server set up in ${home}. Run: node src/home.ts init`);
@@ -203,6 +210,8 @@ function serve() {
     KIND: "home",
     NAME: cfg.NAME,
     lastBackup,
+    // Optional; local test servers set it to lift the limits. Unset = 1.
+    RATE_LIMIT_SCALE: Number(cfg.RATE_LIMIT_SCALE) || 1,
   };
   const server = createServer(async (req, res) => {
     const chunks: Buffer[] = [];

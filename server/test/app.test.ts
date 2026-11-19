@@ -200,6 +200,19 @@ test("register is rate limited per address", async () => {
   assert.equal(last, 429);
 });
 
+test("a test server can raise the limits; the default stays", async () => {
+  const s = server();
+  s.env.RATE_LIMIT_SCALE = 10;
+  const statuses: number[] = [];
+  for (let i = 0; i < 12; i++) {
+    statuses.push((await s.call("POST", "/api/register", { email: `x${i}@b.co`, secret: secretA, invite: "no" })).status);
+  }
+  assert.ok(!statuses.includes(429));
+  s.env.RATE_LIMIT_SCALE = 0;
+  for (let i = 0; i < 100; i++) await s.call("POST", "/api/register", { email: `y${i}@b.co`, secret: secretA, invite: "no" });
+  assert.equal((await s.call("POST", "/api/register", { email: "z@b.co", secret: secretA, invite: "no" })).status, 429);
+});
+
 test("sign-in is limited per account as well as per address", async () => {
   const s = server();
   await owner(s);
