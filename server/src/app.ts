@@ -18,6 +18,8 @@ export interface Env {
   NAME?: string;
   /// When the last backup finished (ISO time), where the server makes them.
   lastBackup?: () => string | null;
+  /// Multiplies every rate limit (default 1). Only local test servers raise it.
+  RATE_LIMIT_SCALE?: number;
 }
 
 export const VERSION = "1.0.0";
@@ -117,7 +119,8 @@ async function limit(env: Env, ip: string, name: string, max: number, seconds: n
   if (Math.random() < 0.02) {
     await env.DB.prepare("DELETE FROM rate WHERE key LIKE ? AND window < ?").bind(`${name}:%`, window - 1).run();
   }
-  if ((row?.n ?? 1) > max) throw new HttpError(429, "Too many attempts. Wait a minute and try again");
+  const scale = Math.max(1, Math.floor(env.RATE_LIMIT_SCALE ?? 1));
+  if ((row?.n ?? 1) > max * scale) throw new HttpError(429, "Too many attempts. Wait a minute and try again");
 }
 
 async function body(req: Request): Promise<Record<string, unknown>> {
