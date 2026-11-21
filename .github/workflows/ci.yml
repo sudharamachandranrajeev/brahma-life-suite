@@ -5,7 +5,7 @@ name: CI
 on:
   push:
     branches: [main]
-    paths: ['core/**', 'app/**', 'apps/**', '.github/workflows/ci.yml']
+    paths: ['core/**', 'app/**', 'apps/**', 'sync-rs/**', 'server/**', '.github/workflows/ci.yml']
   pull_request:
   workflow_dispatch:
 
@@ -46,3 +46,23 @@ jobs:
       - name: Linux build
         if: matrix.package == 'app'
         run: flutter build linux --release
+
+  sync-rs:
+    name: sync-rs (Rust client)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sync-rs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Server packages (for the live test)
+        working-directory: server
+        run: npm ci
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      - name: Live test against the real server on loopback
+        run: cargo test --test live -- --ignored
