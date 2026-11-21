@@ -72,4 +72,11 @@ final linkedApps = <LinkedApp>[
     color: const Color(0xFFB07A2E),
     page: Uri.parse('$_owner/ganana-ai-usage-tracker'),
   ),
+  LinkedApp(
+    name: 'Setu',
+    tagline: 'Sync folders between your computers',
+    icon: Icons.sync_alt_outlined,
+    color: const Color(0xFF3F7FA6),
+    page: Uri.parse('$_owner/setu-sync-manager/releases'),
+  ),
 ];
